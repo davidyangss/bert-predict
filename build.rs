@@ -10,7 +10,7 @@ fn main() {
     // env::vars_os().for_each(|arg| {
     //     println!("cargo:warning=vars_os: {:?}", arg);
     // });
-    println!("cargo:warning=Running build script");
+    // println!("cargo:warning=Running build script");
 
     //不可用，CARGO_BIN_NAME非编译时环境变量，所以无法在编译时添加开启features
     //在Cargo.toml中[[bin]].required-features = ["pretrain"], 在Build时，cargo build --bin pretrain --features="pretrain"

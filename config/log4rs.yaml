@@ -2,7 +2,7 @@ refresh_rate: 30 seconds
 appenders:
   stdout:
     kind: console
-  requests:
+  logfiles:
     kind: file
     path: "log/predict_docs.log"
     encoder:
@@ -11,11 +11,7 @@ root:
   level: info
   appenders:
     - stdout
+    - logfiles
 loggers:
-  app::backend::db:
-    level: info
-  app::requests:
-    level: info
-    appenders:
-      - requests
-    additive: false
+  bert::pretrain:
+    level: debug
