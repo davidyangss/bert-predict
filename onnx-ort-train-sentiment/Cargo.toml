@@ -1,0 +1,42 @@
+[package]
+publish = false
+name = "onnx-ort-train-sentiment"
+version = "0.0.0"
+edition = "2021"
+
+[features]
+cuda = ["ort/cuda"]
+
+[dependencies]
+ort = { version = "2.0.0-rc.4", default-features = false, features = [
+    "ndarray",
+    "half",
+    "training",
+    "load-dynamic",
+] }
+ndarray = "0.15"
+half = "2.1"
+tokenizers = { version = ">=0.13.4", default-features = false, features = [
+    "onig",
+] }
+rand = "0.8"
+simd-json = "0.13"
+kdam = "0.5"
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+    "env-filter",
+    "fmt",
+] }
+
+[[bin]]
+name = "train"
+path = "src/train.rs"
+
+[profile.dev]
+rpath = true
+
+[profile.release]
+rpath = true
+
+# build.rs中配置
+# [target.x86_64-unknown-linux-gnu]
+# rustflags = [ "-Clink-args=-Wl,-rpath,\\$ORIGIN", "-Clink-args=-Wl,-rpath,\\$ORIGIN/../lib" ]

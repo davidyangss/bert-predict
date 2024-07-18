@@ -1,3 +1,13 @@
+[workspace]
+members = [
+	'onnx-ort-train-sentiment'
+]
+default-members = [
+	'.',
+	'onnx-ort-train-sentiment'
+]
+
+
 [package]
 name = "predict_docs"
 version = "0.1.0"
