@@ -4,3 +4,7 @@
 /target
 /log
 
+/tools/google-bert-chinese/pyvenv
+/tools/google-bert-chinese/onnx-training
+/tools/google-bert-chinese/model
+
