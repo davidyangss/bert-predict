@@ -37,6 +37,7 @@ tokio-metrics.workspace = true
 tokio-console.workspace = true
 async-stream.workspace = true
 futures-util.workspace = true
+yss-commons.workspace = true
 
 # [lib]
 # name = "sentiment_dataset"

@@ -4,7 +4,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-
 use futures::{
     sink,
     stream::{self, Stream},
@@ -88,7 +87,11 @@ pub fn dataset_sink() -> impl Sink<Vec<Record>, Error = anyhow::Error> + Unpin {
         let t = task::spawn(async move {
             sum += records.len();
             // info!("records: {:?}, dataset items: {}", &records, sum);
-            info!("dataset items: {} / {}", IMPORTED_LINES_TOTAL.load(Ordering::Relaxed), sum);
+            info!(
+                "dataset items: {} / {}",
+                IMPORTED_LINES_TOTAL.load(Ordering::Relaxed),
+                sum
+            );
 
             Ok::<usize, anyhow::Error>(sum)
         })

@@ -1,31 +1,17 @@
 pub mod csv;
 
 use std::{
-    env,
     path::PathBuf,
-    str::FromStr,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Once, OnceLock,
-    },
-    time::Duration,
+    sync::{Once, OnceLock},
 };
 
 use clap::Parser;
-use futures::Future;
 use lazy_static::lazy_static;
-use tokio::runtime::{self, HistogramScale, Runtime};
-use tracing::{level_filters::LevelFilter, Level};
-use tracing_subscriber::{
-    self, filter::FilterExt, layer::SubscriberExt, EnvFilter, Layer, Registry,
-};
 
 pub mod prelude {
     pub use crate::args;
-    pub use crate::block_on;
     pub use crate::csv::spawn_dataset_task;
     pub use crate::init;
-    pub use crate::runtime;
 
     pub use tracing::debug;
     pub use tracing::error;
@@ -35,6 +21,7 @@ pub mod prelude {
 }
 
 use prelude::*;
+use yss_commons::commons_tokio::setup_tracing;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -79,4 +66,3 @@ pub fn init() {
         info!("OK. command args: {:?}", args());
     });
 }
-

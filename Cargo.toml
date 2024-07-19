@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    '.',
 	'onnx-ort-train-sentiment',
 	'onnx-ort-train-sentiment-dataset'
 ]
@@ -34,15 +35,17 @@ tokio-metrics = "0.3.1"
 tokio-console = "0.1.11"
 async-stream = "0.3.5"
 futures-util = "0.3.30"
-
+yss-commons = { path = "." }
 
 
 
 [package]
-name = "common"
-version = "0.1.0"
+name = "yss-commons"
+version = "0.0.0"
 edition = "2021"
-build = "build.rs"
+
+[lib]
+path = "src/lib.rs"
 
 [dependencies]
 tracing.workspace = true

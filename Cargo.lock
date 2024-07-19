@@ -352,26 +352,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b6a852b24ab71dffc585bcb46eaf7959d175cb865a7152e35b348d1b2960422"
 
 [[package]]
-name = "common"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-stream",
- "clap",
- "futures",
- "futures-util",
- "lazy_static",
- "tokio",
- "tokio-console",
- "tokio-metrics",
- "tokio-stream",
- "tracing",
- "tracing-appender",
- "tracing-attributes",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "compact_str"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1381,6 +1361,7 @@ dependencies = [
  "rand",
  "simd-json",
  "tokenizers",
+ "tracing",
  "tracing-subscriber",
 ]
 
@@ -1409,6 +1390,7 @@ dependencies = [
  "tracing-appender",
  "tracing-attributes",
  "tracing-subscriber",
+ "yss-commons",
 ]
 
 [[package]]
@@ -2706,6 +2688,26 @@ name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+
+[[package]]
+name = "yss-commons"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "clap",
+ "futures",
+ "futures-util",
+ "lazy_static",
+ "tokio",
+ "tokio-console",
+ "tokio-metrics",
+ "tokio-stream",
+ "tracing",
+ "tracing-appender",
+ "tracing-attributes",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "zerocopy"
