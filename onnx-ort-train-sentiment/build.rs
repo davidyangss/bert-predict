@@ -1,5 +1,7 @@
-
-use std::{env, path::{Path, PathBuf}};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 const ONNXRUNTIME_VERSION: &str = "1.18.0";
 const ORT_ENV_ORT_DYLIB_PATH: &str = "ORT_DYLIB_PATH";
@@ -12,7 +14,6 @@ fn select_onnxruntime_lib() -> PathBuf {
             println!("cargo:warning=Using onnxruntime library: {}", ort_lib);
             return PathBuf::from(ort_lib);
         }
-        
     }
 
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -28,7 +29,10 @@ fn select_onnxruntime_lib() -> PathBuf {
             ort_lib.display()
         );
     }
-    println!("cargo:warning=Using onnxruntime library: {}", ort_lib.display());
+    println!(
+        "cargo:warning=Using onnxruntime library: {}",
+        ort_lib.display()
+    );
     println!("cargo:rerun-if-changed={}", ort_lib.display());
     ort_lib
 }
@@ -38,17 +42,27 @@ fn main() {
     // ldd -v target/debug/train
     // 编译时：libonnxruntime.so.{}可存在于【系统库目录、或、ORT_DYLIB_PATH指定、或、onnxruntime_lib的上级目录】
     let onnxruntime_lib = select_onnxruntime_lib();
-    println!("cargo:rustc-env={}={}", ORT_ENV_ORT_DYLIB_PATH, onnxruntime_lib.display());
-    println!("cargo:rustc-link-search=native={}", onnxruntime_lib.parent().unwrap().display());
+    println!(
+        "cargo:rustc-env={}={}",
+        ORT_ENV_ORT_DYLIB_PATH,
+        onnxruntime_lib.display()
+    );
+    println!(
+        "cargo:rustc-link-search=native={}",
+        onnxruntime_lib.parent().unwrap().display()
+    );
 
     // readelf -d target/debug/train | grep 'R*PATH'
-    // 运行时：libonnxruntime.so.{}可存在于【系统库目录、或、执行文件同级目录、或、同级lib目录、或、ORT_DYLIB_PATH指定】 
+    // 运行时：libonnxruntime.so.{}可存在于【系统库目录、或、执行文件同级目录、或、同级lib目录、或、ORT_DYLIB_PATH指定】
     // 在Cargo.toml中配置
     // [target.x86_64-unknown-linux-gnu]
     // rustflags = [ "-Clink-args=-Wl,-rpath,\\$ORIGIN", "-Clink-args=-Wl,-rpath,\\$ORIGIN/../lib" ]
     println!("cargo:rustc-link-args=-Wl,-rpath,$ORIGIN/../lib");
     println!("cargo:rustc-link-args=-Wl,-rpath,$ORIGIN/../");
-    println!("cargo:rustc-link-args=-Wl,-rpath,{}", onnxruntime_lib.parent().unwrap().display());
-    
+    println!(
+        "cargo:rustc-link-args=-Wl,-rpath,{}",
+        onnxruntime_lib.parent().unwrap().display()
+    );
+
     println!("cargo:warning=LD_LIBRARY_PATH={}", env!("LD_LIBRARY_PATH"));
 }

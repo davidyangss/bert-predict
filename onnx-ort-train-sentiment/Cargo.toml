@@ -31,12 +31,6 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
 name = "train"
 path = "src/train.rs"
 
-[profile.dev]
-rpath = true
-
-[profile.release]
-rpath = true
-
 # build.rs中配置
 # [target.x86_64-unknown-linux-gnu]
 # rustflags = [ "-Clink-args=-Wl,-rpath,\\$ORIGIN", "-Clink-args=-Wl,-rpath,\\$ORIGIN/../lib" ]

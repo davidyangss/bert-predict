@@ -1,4 +1,7 @@
-use std::{sync::atomic::{AtomicUsize, Ordering}, time::Duration};
+use std::{
+    sync::atomic::{AtomicUsize, Ordering},
+    time::Duration,
+};
 
 use bert::prelude::*;
 use log::info;

@@ -1,12 +1,13 @@
 [workspace]
 members = [
-	'onnx-ort-train-sentiment'
+	'onnx-ort-train-sentiment',
+	'onnx-ort-train-sentiment-dataset'
 ]
 default-members = [
 	'.',
-	'onnx-ort-train-sentiment'
+	'onnx-ort-train-sentiment',
+	'onnx-ort-train-sentiment-dataset'
 ]
-
 
 [package]
 name = "predict_docs"
@@ -53,5 +54,13 @@ required-features = ["predict"]
 name = "pretrain"
 path = "src/bin/pretrain.rs"
 required-features = ["pretrain"]
+
+
+
+[profile.dev]
+rpath = true
+
+[profile.release]
+rpath = true
 
 

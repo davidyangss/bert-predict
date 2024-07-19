@@ -13,7 +13,6 @@ use futures::{
     Sink, StreamExt,
 };
 
-
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use tokio::task::{self};
@@ -38,8 +37,9 @@ enum CSVLine<L> {
     Error(Error),
 }
 
-impl<L> Clone for CSVLine<L> 
-    where L: Clone
+impl<L> Clone for CSVLine<L>
+where
+    L: Clone,
 {
     fn clone(&self) -> Self {
         match self {
@@ -180,7 +180,7 @@ impl IntoStream for PretrainCSVFile {
             if vec.len() > 0 {
                 yield vec;
             }
-            
+
             yield vec![CSVLine::None];
             // info!("{current_thread_id:?}/{current_thread_name} import file({}) done, all-imported {}. ",
             //     path.display(), get_imported_lines());
@@ -193,10 +193,10 @@ impl IntoStream for PretrainCSVFile {
 #[cfg(feature = "unstable")]
 impl IntoStream for PretrainCSVFile {
     fn into_stream(path: impl AsRef<Path>) -> impl Stream<Item = CSVLine<Record>> + Unpin {
-        use csv::StringRecord;
         use async_stream::stream;
-        use tokio::io::AsyncBufReadExt;
+        use csv::StringRecord;
         use log::debug;
+        use tokio::io::AsyncBufReadExt;
 
         Box::pin(stream! {
             let path = path.as_ref().to_owned();
