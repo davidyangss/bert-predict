@@ -1380,7 +1380,9 @@ dependencies = [
  "lazy_static",
  "ndarray",
  "ort",
+ "pin-project-lite",
  "serde",
+ "simd-json",
  "tokenizers",
  "tokio",
  "tokio-console",
@@ -2699,6 +2701,7 @@ dependencies = [
  "futures",
  "futures-util",
  "lazy_static",
+ "pin-project-lite",
  "tokio",
  "tokio-console",
  "tokio-metrics",
@@ -2706,6 +2709,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-attributes",
+ "tracing-error",
  "tracing-subscriber",
 ]
 

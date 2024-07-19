@@ -13,20 +13,40 @@ use futures::Future;
 
 use tokio::runtime::{HistogramScale, Runtime};
 
-use tracing::{info, Level};
-use tracing_subscriber::{filter::FilterExt, layer::SubscriberExt, Layer};
+use tracing::{info, level_filters::LevelFilter, Level};
+use tracing_subscriber::{
+    filter::FilterExt,
+    layer::{Filter, SubscriberExt},
+    EnvFilter, Layer, Registry,
+};
 
 use lazy_static::lazy_static;
 
 pub fn setup_tracing(log_level: &str, logfile: Option<&PathBuf>, display_target: Option<bool>) {
+    fn setup_fmt_subscriber<L, F>(l: L, f: F)
+    where
+        L: Layer<Registry> + Send + Sync + 'static,
+        F: Filter<Registry> + Send + Sync + Sized + 'static,
+    {
+        let r = tracing_subscriber::registry();
+        let filtered = l.with_filter(f);
+        let layered = r.with(filtered);
+        tracing::subscriber::set_global_default(layered)
+            .expect("setting default subscriber failed");
+    }
+
     static START: Once = Once::new();
     START.call_once(|| {
         let level = Level::from_str(log_level).expect("Invalid log level");
         // tracing_subscriber::fmt::init();
 
-        let l = tracing_subscriber::fmt::layer::<tracing_subscriber::Registry>()
+        let l = tracing_subscriber::fmt::layer::<Registry>()
             .with_thread_names(true)
             .with_target(display_target.unwrap_or(false));
+
+        let lf: LevelFilter = LevelFilter::from_level(level);
+        let def = EnvFilter::from_default_env();
+        let f = <EnvFilter as FilterExt<Registry>>::or(def, lf);
 
         if let Some(logfile) = logfile {
             let file_appender = tracing_appender::rolling::hourly(
@@ -34,21 +54,11 @@ pub fn setup_tracing(log_level: &str, logfile: Option<&PathBuf>, display_target:
                 logfile.file_name().unwrap(),
             );
             let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
-            let f = l.with_writer(non_blocking).with_filter(
-                tracing_subscriber::EnvFilter::from_default_env()
-                    .or(tracing::level_filters::LevelFilter::from_level(level)),
-            );
-            let layered = tracing_subscriber::registry().with(f);
-            tracing::subscriber::set_global_default(layered)
-                .expect("setting default subscriber failed");
+            let l = l.with_writer(non_blocking);
+
+            setup_fmt_subscriber(l, f);
         } else {
-            let f = l.with_filter(
-                tracing_subscriber::EnvFilter::from_default_env()
-                    .or(tracing::level_filters::LevelFilter::from_level(level)),
-            );
-            let layered = tracing_subscriber::registry().with(f);
-            tracing::subscriber::set_global_default(layered)
-                .expect("setting default subscriber failed");
+            setup_fmt_subscriber(l, f);
         }
 
         info!(
@@ -66,8 +76,8 @@ lazy_static! {
 pub fn runtime() -> &'static tokio::runtime::Runtime {
     TOKIO_RUNTIME.get_or_init(|| {
         tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(4)
-            .max_blocking_threads(8)
+            // .worker_threads(4)
+            // .max_blocking_threads(8)
             .thread_name_fn(|| {
                 static ATOMIC_ID: AtomicUsize = AtomicUsize::new(0);
                 let id = ATOMIC_ID.fetch_add(1, Ordering::SeqCst);

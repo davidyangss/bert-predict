@@ -1,21 +1,17 @@
 use std::{
     path::Path,
     sync::atomic::{AtomicU64, Ordering},
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use futures::{
-    sink,
     stream::{self, Stream},
-    Sink, StreamExt,
+    StreamExt,
 };
 
-use tokio::task::{self};
-use tokio_stream::StreamExt as TokioStreamExt;
-
 mod record;
-use record::Record;
-use tracing::Level;
+pub use record::Record;
+use tracing::{event, field, info_span, Level};
 
 use super::prelude::*;
 
@@ -34,20 +30,25 @@ trait IntoStream {
 impl IntoStream for TrainCSV {
     fn into_stream(path: impl AsRef<Path>) -> impl Stream<Item = anyhow::Result<Record>> + Unpin {
         let s = async_stream::stream! {
-            let import_begin = Instant::now();
-            let path = path.as_ref().to_owned();
+            let path = path.as_ref();
+            let import_span = info_span!("import_csv", path = field::Empty);
+            let _guard = import_span.record("path", path.file_name().map(|p| p.to_str()).unwrap()).enter();
+            let import_b = Instant::now();
             let rdr = csv_async::AsyncReaderBuilder::new()
                 .delimiter(args().csv_delimiter as u8)
-                .create_deserializer(TrainCSV::open(&path).await?);
+                .create_deserializer(TrainCSV::open(path).await?);
+            event!(Level::INFO, "Opened");
             let mut records = rdr.into_deserialize::<Record>();
             while let Some(record) = StreamExt::next(&mut records).await {
-                let r = match record {
-                    Ok(r) => anyhow::Result::Ok(r),
-                    Err(e) => anyhow::Result::Err(e.into()),
+                match record {
+                    Ok(r) => yield anyhow::Result::Ok(r),
+                    Err(e) => {
+                        yield anyhow::Result::Err(e.into());
+                        break;
+                    }
                 };
-                yield r
             }
-            info!("Done. import csv: {} {}", import_begin.elapsed().as_secs_f32(), path.display());
+            event!(Level::INFO, "Done. cost {}", import_b.elapsed().as_millis());
         };
         Box::pin(s)
     }
@@ -74,49 +75,10 @@ pub fn records_of_train_files() -> impl Stream<Item = Record> + Unpin {
 }
 
 pub fn chunks_timeout_of_train_files() -> impl Stream<Item = Vec<Record>> {
-    // records_of_train_files().ready_chunks(args().chunk_max_size)
-    TokioStreamExt::chunks_timeout(
-        records_of_train_files(),
-        args().chunk_max_size,
-        Duration::from_millis(args().chunk_timeout),
-    )
-}
-
-pub fn dataset_sink() -> impl Sink<Vec<Record>, Error = anyhow::Error> + Unpin {
-    let sink = sink::unfold(0, |mut sum, records: Vec<Record>| async move {
-        let t = task::spawn(async move {
-            sum += records.len();
-            // info!("records: {:?}, dataset items: {}", &records, sum);
-            info!(
-                "dataset items: {} / {}",
-                IMPORTED_LINES_TOTAL.load(Ordering::Relaxed),
-                sum
-            );
-
-            Ok::<usize, anyhow::Error>(sum)
-        })
-        .await??;
-        Ok(t)
-    });
-    Box::pin(sink)
-}
-
-pub async fn dataset_do() -> anyhow::Result<()> {
-    let r = StreamExt::map(chunks_timeout_of_train_files(), Ok::<_, anyhow::Error>)
-        .forward(dataset_sink())
-        .await;
-
-    if let Err(ref e) = r {
-        error!("Error convert to dataset: {}", e);
-    }
-
-    r
-}
-
-#[tracing_attributes::instrument(level = Level::INFO, name = "spawn_dataset_task")]
-pub async fn spawn_dataset_task() -> anyhow::Result<()> {
-    let dataset_begin = Instant::now();
-    let r = task::spawn(dataset_do()).await?;
-    info!("dataset cost: {:?},", dataset_begin.elapsed());
-    r
+    records_of_train_files().ready_chunks(args().chunk_max_size)
+    // TokioStreamExt::chunks_timeout(
+    //     records_of_train_files(),
+    //     args().chunk_max_size,
+    //     Duration::from_millis(args().chunk_timeout),
+    // )
 }
