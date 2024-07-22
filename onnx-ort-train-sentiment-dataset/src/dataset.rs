@@ -1,11 +1,13 @@
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use futures::StreamExt;
-use tokio::task;
+use tokio::sync::RwLock;
 use tracing::Level;
 
 use onnx_ort_train_sentiment_dataset::{
-    csv::chunks_timeout_of_train_files, prelude::*, SinkDataset,
+    csv::{chunks_timeout_of_train_files, get_imported_lines},
+    prelude::*,
+    SinkDataset,
 };
 use yss_commons::commons_tokio::{block_on, setup_tracing};
 
@@ -28,29 +30,21 @@ fn main() -> anyhow::Result<()> {
 #[tracing_attributes::instrument(level = Level::INFO, name = "spawn_dataset_task")]
 async fn spawn_dataset_task() -> anyhow::Result<()> {
     let dataset_begin = Instant::now();
-    let r = task::spawn(dataset_do()).await?;
-    info!("dataset cost: {:?},", dataset_begin.elapsed());
-    r
+    let dataset_sink_writer = SinkDataset::new_by_args()?;
+    let dataset_sink_writer = Arc::new(RwLock::new(dataset_sink_writer));
+    let d = Box::pin(dataset_do(dataset_sink_writer.clone()));
+    let r = tokio::spawn(d).await??;
+    info!(
+        "dataset cost: {:?}, total lines: {}",
+        dataset_begin.elapsed(),
+        get_imported_lines()
+    );
+    Ok(r)
 }
 
-// fn dataset_sink() -> impl Sink<Vec<Record>, Error = anyhow::Error> + Unpin {
-//     let sink = sink::unfold(0, |mut sum, records: Vec<Record>| async move {
-//         let t = task::spawn(async move {
-//             sum += records.len();
-//             info!("records: {:?}, dataset items: {}", &records, sum);
-//             info!("dataset items: {} / {}", get_imported_lines(), sum);
-
-//             Ok::<usize, anyhow::Error>(sum)
-//         })
-//         .await??;
-//         Ok(t)
-//     });
-//     Box::pin(sink)
-// }
-
-async fn dataset_do() -> anyhow::Result<()> {
+async fn dataset_do(dataset_sink_writer: Arc<RwLock<SinkDataset>>) -> anyhow::Result<()> {
     let r = StreamExt::map(chunks_timeout_of_train_files(), Ok::<_, anyhow::Error>)
-        .forward(SinkDataset::new_by_args().unwrap().dataset_sink())
+        .forward(SinkDataset::dataset_sink(dataset_sink_writer))
         .await;
 
     if let Err(ref e) = r {

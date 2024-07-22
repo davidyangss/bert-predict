@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Eq, PartialEq)]
@@ -26,5 +28,17 @@ impl Record {
 
     pub fn id(&self) -> Option<u64> {
         self.id
+    }
+}
+
+impl Display for Record {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{},{},{}",
+            self.id.unwrap_or(0_u64),
+            self.comment,
+            self.sentiment
+        )
     }
 }

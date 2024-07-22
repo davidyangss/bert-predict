@@ -2,6 +2,7 @@ pub mod csv;
 
 use std::{
     fs::OpenOptions,
+    future::Future,
     io::IoSlice,
     path::PathBuf,
     sync::{atomic::AtomicUsize, Arc, OnceLock},
@@ -12,7 +13,7 @@ use clap::{Parser, ValueHint};
 use csv::Record;
 use futures::{
     sink::{self},
-    stream, Sink, StreamExt,
+    stream, Sink, StreamExt, TryStreamExt,
 };
 use lazy_static::lazy_static;
 
@@ -60,17 +61,13 @@ pub struct Args {
     #[arg(long)]
     pub log_display_target: Option<bool>,
 
-    /// At the same time, unordered files size. default: 20
-    #[arg(long, default_value = "20")]
-    pub unordered: usize,
+    /// At the same time, unordered files size.
+    #[arg(long)]
+    pub unordered: Option<usize>,
 
     /// It is max size of chunk, when import csv line
     #[arg(long, default_value = "1000")]
     chunk_max_size: usize,
-
-    /// It is timeout of chunk, when import csv line. unit: milliseconds
-    #[arg(long, default_value = "500")]
-    chunk_timeout: u64,
 }
 
 lazy_static! {
@@ -89,7 +86,7 @@ pub fn args() -> &'static Args {
 //     })
 // }
 
-type TextLabel = (Vec<u8>, Vec<u8>);
+type TextLabel = (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>);
 
 pin_project_lite::pin_project! {
     pub struct SinkDataset {
@@ -134,70 +131,117 @@ impl SinkDataset {
         })
     }
 
-    pub fn dataset_sink(self) -> impl Sink<Vec<Record>, Error = anyhow::Error> + Unpin {
-        let sink = sink::unfold(Arc::new(RwLock::new(self)), |s, records| async move {
-            Self::write_tokinizer_encode(s.clone(), records).await;
+    pub fn dataset_sink(
+        dataset: Arc<RwLock<SinkDataset>>,
+    ) -> impl Sink<Vec<Record>, Error = anyhow::Error> + Unpin {
+        let sink = sink::unfold(dataset, |s, records| async move {
+            Self::write_tokinizer_encode(&s.clone(), records).await?;
             Ok(s)
         });
         Box::pin(sink)
     }
 
-    async fn write_tokinizer_encode(
-        dataset: Arc<RwLock<Self>>, // 目测，不清楚tokinizer是否是线程安全的
-        records: Vec<Record>,
-    ) {
-        let dataset = &dataset.clone();
-        let s = stream::iter(records)
-            .then(|r| async move {
-                // 将encode拆分为很多个小任务
-                let dataset = dataset.clone();
-                let dataset = dataset.read().await;
-                let tokenized = dataset.tokinizer.encode(r.comment(), false);
-                if let Err(e) = tokenized {
-                    return Result::<TextLabel, anyhow::Error>::Err(anyhow::anyhow!(
-                        "tokenized error: {:?}",
-                        e
-                    ));
-                }
+    fn encode_to_bytes(
+        dataset: &Arc<RwLock<Self>>,
+        r: Record,
+    ) -> impl Future<Output = anyhow::Result<TextLabel>> + 'static {
+        let dataset = dataset.clone();
+        async move {
+            let dataset = dataset.read().await;
 
-                let id_bytes: Vec<u8> = tokenized
-                    .unwrap()
-                    .get_ids()
-                    .iter()
-                    .flat_map(|c| (*c as u16).to_le_bytes())
-                    .collect();
-                Ok((id_bytes, vec![]))
-            })
-            .filter_map(|r| async { //过滤
-                match r {
-                    Result::Ok(r) => Some(r),
-                    Err(e) => {
-                        error!("write_tokinizer_encode error: {:?}", e);
-                        None
-                    }
-                }
-            })
+            let id_bytes: Vec<u8> = dataset
+                .tokinizer
+                .encode(r.comment(), false)
+                .map_err(|e| anyhow::anyhow!("{:?}", e))?
+                .get_ids()
+                .iter()
+                .flat_map(|c| (*c as u16).to_le_bytes())
+                .collect();
+            let id_len = id_bytes.len().to_le_bytes().to_vec();
+            let label_bytes: Vec<u8> = dataset
+                .tokinizer
+                .encode(r.sentiment().to_string(), false)
+                .map_err(|e| anyhow::anyhow!("{:?}", e))?
+                .get_ids()
+                .iter()
+                .flat_map(|c| (*c as u16).to_le_bytes())
+                .collect();
+            let label_len = label_bytes.len().to_le_bytes().to_vec();
+            Ok((id_len, id_bytes, label_len, label_bytes))
+        }
+    }
+
+    fn write_bytes_to_dataset(
+        dataset: &Arc<RwLock<Self>>,
+        r: Vec<anyhow::Result<TextLabel>>,
+    ) -> impl Future<Output = anyhow::Result<()>> + 'static {
+        let dataset = dataset.clone();
+        async move {
+            // 写文件
+            let mut dataset = dataset.write().await;
+            let bufs: anyhow::Result<Vec<IoSlice>> = r
+                .iter() // Iter item Result时，遇到第一个Error停止
+                .fold(
+                    Ok(Vec::<IoSlice>::new()),
+                    |acc: anyhow::Result<Vec<IoSlice>>, r: &anyhow::Result<TextLabel>| {
+                        if let Err(_) = acc {
+                            return acc;
+                        }
+
+                        match r {
+                            Err(e) => return Err(anyhow::anyhow!("{}", e)),
+                            Result::Ok(vv) => {
+                                let mut acc = acc.unwrap();
+                                acc.push(IoSlice::new(vv.0.as_slice()));
+                                acc.push(IoSlice::new(vv.1.as_slice()));
+                                acc.push(IoSlice::new(vv.2.as_slice()));
+                                acc.push(IoSlice::new(vv.3.as_slice()));
+                                Ok(acc)
+                            }
+                        }
+                    },
+                );
+            if let Err(e) = bufs {
+                return Err(e);
+            }
+
+            let writer = &mut dataset.writer;
+            let writed: Result<usize, std::io::Error> =
+                writer.write_vectored(bufs.unwrap().as_slice()).await;
+            if let Err(e) = writed {
+                return Err(anyhow::anyhow!(
+                    "write_tokinizer_encode write error: {:?}",
+                    e
+                ));
+            }
+            if let Err(e) = writer.flush().await {
+                return Err(anyhow::anyhow!(
+                    "write_tokinizer_encode flush error: {:?}",
+                    e
+                ));
+            }
+            if let Result::Ok(u) = writed {
+                dataset
+                    .size_of_written
+                    .fetch_add(u, std::sync::atomic::Ordering::SeqCst);
+            }
+            Ok(())
+        }
+    }
+
+    async fn write_tokinizer_encode(
+        dataset: &Arc<RwLock<Self>>, // 目测，不清楚tokinizer是否是线程安全的
+        records: Vec<Record>,
+    ) -> anyhow::Result<()> {
+        let s = stream::iter(records)
+            .then(|r| Self::encode_to_bytes(dataset, r))
+            .inspect_err(|e| error!("tokinizer encode error: {:?}", e))
             .ready_chunks(args().chunk_max_size)
-            .for_each(|r| async move {  // 写文件
-                let dataset = dataset.clone();
-                let mut dataset = dataset.write().await;
-                let bufs: Vec<IoSlice> = r
-                    .iter()
-                    .flat_map(|(id_bytes, label_bytes)| {
-                        vec![
-                            IoSlice::new(id_bytes.as_slice()),
-                            IoSlice::new(label_bytes.as_slice()),
-                        ]
-                    })
-                    .collect();
-                let writer = &mut dataset.writer;
-                if let Err(e) = writer.write_vectored(bufs.as_slice()).await {
-                    error!("write_tokinizer_encode write error: {:?}", e);
-                }
-                if let Err(e) = writer.flush().await {
-                    error!("write_tokinizer_encode flush error: {:?}", e);
-                }
-            });
-        s.await;
+            .then(|r| Self::write_bytes_to_dataset(dataset, r))
+            .inspect_err(|e| error!("tokinizer write error: {:?}", e))
+            .take_while(|r| std::future::ready(r.is_ok())); // 有错误就停止
+        s.for_each_concurrent(num_cpus::get() * 3,|_| async {}).await;
+        Ok(())
+        // warn!("Dataset.bin is written size: {}", dataset.size_of_written.load(std::sync::atomic::Ordering::SeqCst));
     }
 }

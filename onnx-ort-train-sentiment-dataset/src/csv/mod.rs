@@ -32,12 +32,13 @@ impl IntoStream for TrainCSV {
         let s = async_stream::stream! {
             let path = path.as_ref();
             let import_span = info_span!("import_csv", path = field::Empty);
-            let _guard = import_span.record("path", path.file_name().map(|p| p.to_str()).unwrap()).enter();
+            // let _guard = import_span.record("path", path.file_name().map(|p| p.to_str()).unwrap()).enter();
+            let _guard = import_span.enter();
             let import_b = Instant::now();
             let rdr = csv_async::AsyncReaderBuilder::new()
                 .delimiter(args().csv_delimiter as u8)
                 .create_deserializer(TrainCSV::open(path).await?);
-            event!(Level::INFO, "Opened");
+            event!(Level::INFO, "Opened {}", path.display());
             let mut records = rdr.into_deserialize::<Record>();
             while let Some(record) = StreamExt::next(&mut records).await {
                 match record {
@@ -48,7 +49,7 @@ impl IntoStream for TrainCSV {
                     }
                 };
             }
-            event!(Level::INFO, "Done. cost {}", import_b.elapsed().as_millis());
+            event!(Level::INFO, "Done. cost {} / {}", import_b.elapsed().as_millis(), path.display());
         };
         Box::pin(s)
     }
@@ -56,8 +57,8 @@ impl IntoStream for TrainCSV {
 
 pub fn records_of_train_files() -> impl Stream<Item = Record> + Unpin {
     let s = stream::iter(args().csvs.iter());
-    // let s = StreamExt::flat_map_unordered(s, Some(args().unordered_files), |f| {
-    let s = StreamExt::flat_map(s, |f| {
+    let s = StreamExt::flat_map_unordered(s, args().unordered, |f| {
+        // let s = StreamExt::flat_map(s, |f| {
         Box::pin(StreamExt::filter_map(TrainCSV::into_stream(f), |r| async {
             match r {
                 Ok(r) => {

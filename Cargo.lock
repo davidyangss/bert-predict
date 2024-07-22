@@ -1379,6 +1379,7 @@ dependencies = [
  "kdam",
  "lazy_static",
  "ndarray",
+ "num_cpus",
  "ort",
  "pin-project-lite",
  "serde",
