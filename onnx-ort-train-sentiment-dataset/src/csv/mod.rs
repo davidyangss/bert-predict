@@ -1,6 +1,5 @@
 use std::{
-    path::Path,
-    sync::atomic::{AtomicU64, Ordering},
+    path::{Path, PathBuf},
     time::Instant,
 };
 
@@ -14,13 +13,6 @@ pub use record::Record;
 use tracing::{event, field, info_span, Level};
 
 use super::prelude::*;
-
-static IMPORTED_LINES_TOTAL: AtomicU64 = AtomicU64::new(0);
-#[inline(never)]
-pub fn get_imported_lines() -> u64 {
-    IMPORTED_LINES_TOTAL.load(Ordering::Relaxed)
-}
-
 pub type TrainCSV = tokio::fs::File;
 
 trait IntoStream {
@@ -78,23 +70,25 @@ impl IntoStream for TrainCSV {
             while let Some(record) = StreamExt::next(&mut records).await {
                 yield record?;
             }
-            event!(Level::INFO, "Done. cost {} / {}", import_b.elapsed().as_millis(), path.display());
+            event!(
+                Level::INFO,
+                "Done. cost {} / {}",
+                import_b.elapsed().as_millis(),
+                path.display()
+            );
         }
         let s = line_stream(path.as_ref().to_path_buf());
         s
     }
 }
 
-pub fn records_of_train_files() -> impl Stream<Item = Record> + Unpin {
-    let s = stream::iter(args().csvs.iter());
-    let s = StreamExt::flat_map_unordered(s, args().unordered, |f| {
-        // let s = StreamExt::flat_map(s, |f| {
+pub fn train_records<'a>(files: &'a [PathBuf]) -> impl Stream<Item = Record> + Unpin + 'a {
+    let s = stream::iter(files);
+    // let s = StreamExt::flat_map_unordered(s, args().unordered, |f| {
+    let s = StreamExt::flat_map(s, |f| {
         Box::pin(StreamExt::filter_map(TrainCSV::into_stream(f), |r| async {
             match r {
-                Ok(r) => {
-                    IMPORTED_LINES_TOTAL.fetch_add(1, Ordering::Relaxed);
-                    Some(r)
-                }
+                Ok(r) => Some(r),
                 Err(e) => {
                     error!("Error reading csv({}): {:?}", f.display(), e);
                     None
@@ -105,11 +99,8 @@ pub fn records_of_train_files() -> impl Stream<Item = Record> + Unpin {
     Box::pin(s)
 }
 
-pub fn chunks_timeout_of_train_files() -> impl Stream<Item = Vec<Record>> {
-    records_of_train_files().ready_chunks(args().chunk_max_size)
-    // TokioStreamExt::chunks_timeout(
-    //     records_of_train_files(),
-    //     args().chunk_max_size,
-    //     Duration::from_millis(args().chunk_timeout),
-    // )
+pub fn chunks_train_records<'a>(
+    files: &'a [PathBuf],
+) -> impl Stream<Item = Vec<Record>> + Unpin + 'a {
+    train_records(files).ready_chunks(args().chunk_max_size)
 }

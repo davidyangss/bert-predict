@@ -62,9 +62,11 @@ pub fn setup_tracing(log_level: &str, logfile: Option<&PathBuf>, display_target:
         }
 
         info!(
-            "OK. setup tracing, log level: {:?}, RUST_LOG={}",
+            "OK. setup tracing, log level: {:?} {}",
             &level,
-            env::var("RUST_LOG").unwrap_or_default()
+            env::var("RUST_LOG")
+                .map(|v| { format!(", RUST_LOG={}", v) })
+                .unwrap_or_default()
         );
     });
 }

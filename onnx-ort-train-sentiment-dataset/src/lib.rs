@@ -6,7 +6,7 @@ use std::{
     fs::OpenOptions,
     future::Future,
     io::IoSlice,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{atomic::AtomicUsize, Arc, OnceLock},
 };
 
@@ -47,6 +47,7 @@ pub struct Args {
     #[clap(long, value_parser, value_hint = ValueHint::FilePath)]
     pub tokenizer_json: PathBuf,
 
+    /// the parsent dir of dataset files, that from csv files. dataset bin files format is dataset-{}.bin
     #[clap(long, value_parser, value_hint = ValueHint::FilePath)]
     pub out_dataset_bin: PathBuf,
 
@@ -63,9 +64,9 @@ pub struct Args {
     #[arg(long)]
     pub log_display_target: Option<bool>,
 
-    /// At the same time, unordered files size.
+    /// At the same time, unordered files size. csv files is split to chunks by this size
     #[arg(long)]
-    pub unordered: Option<usize>,
+    pub split_size: Option<usize>,
 
     /// It is max size of chunk, when import csv line
     #[arg(long, default_value = "1000")]
@@ -92,27 +93,21 @@ type TextLabel = (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>);
 
 pin_project_lite::pin_project! {
     pub struct SinkDataset {
+        id: usize,
         tokinizer: Tokenizer,
         out_dataset_bin: PathBuf,
         #[pin]
         writer: BufWriter<tokio::fs::File>,
         size_of_written: AtomicUsize,
+        total_lines: AtomicUsize,
     }
 }
 
 impl SinkDataset {
-    pub fn new_by_args() -> Result<Self, anyhow::Error> {
+    pub fn new_by_args(id: usize) -> Result<Self, anyhow::Error> {
         let tokinizer = Tokenizer::from_file(&args().tokenizer_json).unwrap();
         let out_dataset_bin = args().out_dataset_bin.clone();
-        let p = out_dataset_bin.parent().expect(&format!(
-            "cannot get parent path of {}",
-            &out_dataset_bin.display()
-        ));
-        if !p.exists() {
-            std::fs::create_dir_all(p).inspect_err(|e| {
-                error!("create dir({}) error: {:?}", p.display(), e);
-            })?;
-        }
+        let out_dataset_bin = out_dataset_bin.join(format!("dataset-{}.bin", id));
         let f = OpenOptions::new()
             .append(false)
             .write(true)
@@ -126,11 +121,28 @@ impl SinkDataset {
         let writer = BufWriter::new(f);
         let size_of_written = AtomicUsize::new(0);
         Ok(Self {
+            id,
             tokinizer,
             out_dataset_bin,
             writer,
             size_of_written,
+            total_lines: AtomicUsize::new(0),
         })
+    }
+
+    pub fn total_lines(&self) -> usize {
+        self.total_lines.load(std::sync::atomic::Ordering::Relaxed)
+    }
+    pub fn size_of_written(&self) -> usize {
+        self.size_of_written
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+    pub fn lines_plus_plus(&self) -> usize {
+        self.total_lines
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    }
+    pub fn out_dataset_bin(&self) -> &Path {
+        &self.out_dataset_bin
     }
 
     pub fn dataset_sink(
@@ -150,6 +162,7 @@ impl SinkDataset {
         let dataset = dataset.clone();
         async move {
             let dataset = dataset.read().await;
+            dataset.lines_plus_plus();
 
             let id_bytes: Vec<u8> = dataset
                 .tokinizer
@@ -242,7 +255,8 @@ impl SinkDataset {
             .then(|r| Self::write_bytes_to_dataset(dataset, r))
             .inspect_err(|e| error!("tokinizer write error: {:?}", e))
             .take_while(|r| std::future::ready(r.is_ok())); // 有错误就停止
-        s.for_each_concurrent(num_cpus::get() * 3,|_| async {}).await;
+        s.for_each_concurrent(num_cpus::get() * 3, |_| async {})
+            .await;
         Ok(())
         // warn!("Dataset.bin is written size: {}", dataset.size_of_written.load(std::sync::atomic::Ordering::SeqCst));
     }
