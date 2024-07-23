@@ -5,7 +5,9 @@ version = "0.0.0"
 edition = "2021"
 
 [features]
-default = []
+default = [ "futures-async-stream" ]
+tokio-async-stream = [ "dep:async-stream" ]
+futures-async-stream = [ "dep:futures-async-stream" ]
 
 [dependencies]
 ort = { version = "2.0.0-rc.4", default-features = false, features = [
@@ -24,6 +26,9 @@ csv-async = { version = "1.3.0", features = ["with_serde", "tokio"] }
 serde = "1.0.204"
 simd-json = "0.13"
 
+async-stream = { version = "0.3.5", optional = true }
+futures-async-stream = { version = "0.2", optional = true }
+
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-attributes.workspace = true
@@ -32,7 +37,6 @@ tokio.workspace = true
 tokio-stream.workspace = true
 tokio-metrics.workspace = true
 tokio-console.workspace = true
-async-stream.workspace = true
 futures.workspace = true
 futures-util.workspace = true
 pin-project-lite.workspace = true

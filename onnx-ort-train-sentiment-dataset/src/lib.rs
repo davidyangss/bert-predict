@@ -1,3 +1,5 @@
+#![feature(coroutines, proc_macro_hygiene, stmt_expr_attributes)]
+
 pub mod csv;
 
 use std::{
