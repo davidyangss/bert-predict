@@ -1,13 +1,73 @@
-use std::{path::PathBuf, sync::Arc, time::Instant};
+use std::{
+    path::PathBuf,
+    sync::{Arc, OnceLock},
+    time::Instant,
+};
 
 use futures::StreamExt;
 use tokio::{sync::RwLock, task::JoinSet};
 use tracing::Level;
 
+use clap::{Parser, ValueHint};
+use lazy_static::lazy_static;
+
 use onnx_ort_train_sentiment_dataset::{csv::chunks_train_records, prelude::*, SinkDataset};
 use yss_commons::commons_tokio::{block_on, setup_tracing};
 
-/// cargo run -p onnx-ort-train-sentiment-dataset -- --split-size=1 --out-dataset-bin="./target/dataset.bin --csvs="./onnx-ort-train-sentiment-dataset/data/train.csv" --tokenizer-json="./tools/google-bert-chinese/model/tokenizer.json""
+/// Simple program to greet a person
+#[derive(Parser, Debug)]
+#[command(version, about)]
+pub struct Args {
+    /// csv files
+    #[arg(short, long, value_parser, num_args = 1.., value_delimiter = ' ', required = true)]
+    pub csvs: Vec<PathBuf>,
+
+    #[clap(long, value_parser, value_hint = ValueHint::FilePath)]
+    pub tokenizer_json: PathBuf,
+
+    /// the parsent dir of dataset files, that from csv files. dataset bin files format is dataset-{}.bin
+    #[clap(long, value_parser, value_hint = ValueHint::FilePath)]
+    pub out_dataset_bin: PathBuf,
+
+    /// csv delimiter, default = ,
+    #[arg(long, default_value = ",")]
+    pub csv_delimiter: char,
+
+    #[arg(short = 'l', long, default_value = "INFO")]
+    pub log_level: String,
+
+    #[arg(long)]
+    pub log_file: Option<PathBuf>,
+
+    #[arg(long)]
+    pub log_display_target: Option<bool>,
+
+    /// At the same time, unordered files size. csv files is split to chunks by this size
+    #[arg(long)]
+    pub split_size: Option<usize>,
+
+    /// It is max size of chunk, when import csv line
+    #[arg(long, default_value = "100")]
+    chunk_max_size: usize,
+}
+
+lazy_static! {
+    static ref COMMAND_ARGS: OnceLock<Args> = OnceLock::new();
+}
+
+// #[cfg(not(test))]
+pub fn args() -> &'static Args {
+    COMMAND_ARGS.get_or_init(Args::parse)
+}
+
+// // #[cfg(test)]
+// pub fn args() -> &'static Args {
+//     COMMAND_ARGS.get_or_init(|| {
+//         Args::parse_from(vec!["program", "--csvs", "./onnx-ort-train-sentiment-dataset/data/train.csv"])
+//     })
+// }
+
+/// cargo run -r -p onnx-ort-train-sentiment-dataset -- --tokenizer-json="./tools/google-bert-chinese/model/tokenizer.json" --split-size=1 --out-dataset-bin="./target/dataset.bin" --csvs="./onnx-ort-train-sentiment-dataset/data/train.csv"
 // #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 fn main() -> anyhow::Result<()> {
     setup_tracing(
@@ -28,12 +88,20 @@ fn main() -> anyhow::Result<()> {
     });
 
     let out_dataset_bin = args().out_dataset_bin.as_path();
-    if !out_dataset_bin.is_dir() {
-        panic!("out_dataset_bin is not dir, it {}", out_dataset_bin.display());
-    }
     if out_dataset_bin.exists() {
+        if !out_dataset_bin.is_dir() {
+            panic!(
+                "out_dataset_bin is not dir, it {}",
+                out_dataset_bin.display()
+            );
+        }
+
         std::fs::remove_dir_all(&out_dataset_bin).inspect_err(|e| {
-            panic!("remove old dirs({}) error: {:?}", out_dataset_bin.display(), e);
+            panic!(
+                "remove old dirs({}) error: {:?}",
+                out_dataset_bin.display(),
+                e
+            );
         })?;
     }
     std::fs::create_dir_all(&out_dataset_bin).inspect_err(|e| {
@@ -91,7 +159,7 @@ async fn dataset_do() -> anyhow::Result<usize> {
 }
 
 // 一小批文件，对应 一个dataset_sink_writer
-#[tracing_attributes::instrument(level = Level::INFO, name = "inspect_do_by_files", skip(files))]
+#[tracing_attributes::instrument(level = Level::INFO, name = "inspect_dataset", skip(files))]
 async fn inspect_do_by_files(id: usize, files: Vec<PathBuf>) -> anyhow::Result<usize> {
     let r = dataset_do_by_files(id, &files).await;
     match r {
@@ -108,10 +176,15 @@ async fn inspect_do_by_files(id: usize, files: Vec<PathBuf>) -> anyhow::Result<u
 async fn dataset_do_by_files(id: usize, files: &[PathBuf]) -> anyhow::Result<usize> {
     let dataset_begin = Instant::now();
     info!("Begin. dataset: id={}, files={:?}", id, files);
-    let dataset_sink_writer = Arc::new(RwLock::new(SinkDataset::new_by_args(id)?));
-    let _ = chunks_train_records(&files)
+    let dataset_sink_writer = Arc::new(RwLock::new(
+        SinkDataset::new_by_args(id, &args().tokenizer_json, &args().out_dataset_bin).await?,
+    ));
+    let _ = chunks_train_records(&files, args().csv_delimiter, args().chunk_max_size)
         .map(|r| anyhow::Result::Ok(r))
-        .forward(SinkDataset::dataset_sink((&dataset_sink_writer).clone()))
+        .forward(SinkDataset::dataset_sink(
+            (&dataset_sink_writer).clone(),
+            args().chunk_max_size,
+        ))
         .await?;
 
     let dataset = dataset_sink_writer.read().await;

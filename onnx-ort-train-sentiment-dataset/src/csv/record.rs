@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Deserialize, Eq, PartialEq, Clone)]
 pub struct Record {
     id: Option<u64>,
     comment: String,

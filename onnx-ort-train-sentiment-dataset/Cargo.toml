@@ -5,7 +5,7 @@ version = "0.0.0"
 edition = "2021"
 
 [features]
-default = [ "futures-async-stream" ]
+default = [ "tokio-async-stream" ]
 tokio-async-stream = [ "dep:async-stream" ]
 futures-async-stream = [ "dep:futures-async-stream" ]
 
@@ -45,8 +45,11 @@ anyhow.workspace = true
 clap.workspace = true
 lazy_static.workspace = true
 num_cpus.workspace = true
+hex.workspace = true
 
 yss-commons.workspace = true
+
+[dev-dependencies]
 
 # [lib]
 # name = "sentiment_dataset"
