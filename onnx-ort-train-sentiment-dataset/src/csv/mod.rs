@@ -5,14 +5,13 @@ use std::{
 
 use futures::{
     stream::{self, Stream},
-    StreamExt,
+    StreamExt, TryStreamExt,
 };
 
 mod record;
 pub use record::Record;
 use tracing::{event, field, info_span, Level};
 
-use super::prelude::*;
 pub type TrainCSV = tokio::fs::File;
 
 trait IntoStream {
@@ -28,9 +27,7 @@ impl IntoStream for TrainCSV {
         path: impl AsRef<Path>,
         csv_delimiter: char,
     ) -> impl Stream<Item = anyhow::Result<Record>> + Unpin {
-        // use futures::TryFutureExt;
-
-        let s = async_stream::stream! {
+        let s = async_stream::try_stream! {
             let path = path.as_ref();
             let import_span = info_span!("import_csv", path = field::Empty);
             // let _guard = import_span.record("path", path.file_name().map(|p| p.to_str()).unwrap()).enter();
@@ -42,13 +39,7 @@ impl IntoStream for TrainCSV {
             event!(Level::INFO, "Opened {}", path.display());
             let mut records = rdr.into_deserialize::<Record>();
             while let Some(record) = StreamExt::next(&mut records).await {
-                match record {
-                    Ok(r) => yield anyhow::Result::Ok(r),
-                    Err(e) => {
-                        yield anyhow::Result::Err(e.into());
-                        break;
-                    }
-                };
+                yield record?;
             }
             event!(Level::INFO, "Done. cost {} / {}", import_b.elapsed().as_millis(), path.display());
         };
@@ -91,23 +82,10 @@ impl IntoStream for TrainCSV {
 pub fn train_records<'a>(
     files: &'a [PathBuf],
     csv_delimiter: char,
-) -> impl Stream<Item = Record> + Unpin + 'a {
-    let s = stream::iter(files);
+) -> impl Stream<Item = anyhow::Result<Record>> + Unpin + 'a {
+    let files = stream::iter(files);
     // let s = StreamExt::flat_map_unordered(s, args().unordered, |f| {
-    let s = StreamExt::flat_map(s, move |f| {
-        Box::pin(StreamExt::filter_map(
-            TrainCSV::into_stream(f, csv_delimiter),
-            |r| async {
-                match r {
-                    Ok(r) => Some(r),
-                    Err(e) => {
-                        error!("Error reading csv({}): {:?}", f.display(), e);
-                        None
-                    }
-                }
-            },
-        ))
-    });
+    let s = files.flat_map(move |f| TrainCSV::into_stream(f, csv_delimiter));
     Box::pin(s)
 }
 
@@ -115,6 +93,7 @@ pub fn chunks_train_records<'a>(
     files: &'a [PathBuf],
     csv_delimiter: char,
     chunk_max_size: usize,
-) -> impl Stream<Item = Vec<Record>> + Unpin + 'a {
-    train_records(files, csv_delimiter).ready_chunks(chunk_max_size)
+) -> impl Stream<Item = anyhow::Result<Vec<Record>>> + Unpin + 'a {
+    let s = train_records(files, csv_delimiter).try_ready_chunks(chunk_max_size);
+    return s.map_err(|e| e.into());
 }

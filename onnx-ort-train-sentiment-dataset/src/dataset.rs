@@ -143,14 +143,14 @@ async fn dataset_do() -> anyhow::Result<usize> {
         let r = tasks.join_next().await;
         match r {
             None => break,
-            Some(Ok(Ok(i))) => sum += i,
-            Some(Err(e)) => {
-                error!("dataset_do: {:?}", e);
-                break;
-            }
+            Some(Ok(Ok(done))) => sum += done,
             Some(Ok(Err(e))) => {
                 error!("dataset_do: {:?}", e);
                 continue;
+            }
+            Some(Err(e)) => {
+                error!("dataset_do: {:?}", e);
+                break;
             }
         }
     }
@@ -179,7 +179,7 @@ async fn dataset_do_by_files(id: usize, files: &[PathBuf]) -> anyhow::Result<usi
         SinkDataset::new_by_args(id, &args().tokenizer_json, &args().out_dataset_bin).await?,
     ));
     let _ = chunks_train_records(&files, args().csv_delimiter, args().chunk_max_size)
-        .map(|r| anyhow::Result::Ok(r))
+        .take_while(|r| futures::future::ready(r.is_ok()))
         .forward(SinkDataset::dataset_sink(
             (&dataset_sink_writer).clone(),
             args().chunk_max_size,

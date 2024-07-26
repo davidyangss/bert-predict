@@ -11,8 +11,7 @@ pub struct OrtTraining {
     out_trained_onnx: PathBuf,
 }
 
-impl OrtTraining {
-}
+impl OrtTraining {}
 
 /// use args to create a new OrtTraining instance
 #[derive(Debug, Clone)]
@@ -46,7 +45,7 @@ impl OrtTrainingBuilder {
         self
     }
 
-    pub fn with_training_model(mut self, training_model: &PathBuf) ->  Self {
+    pub fn with_training_model(mut self, training_model: &PathBuf) -> Self {
         self.training_model = training_model.clone();
         self
     }

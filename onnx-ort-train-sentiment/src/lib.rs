@@ -9,10 +9,12 @@ use anyhow::Ok;
 use futures::{stream, StreamExt, TryStreamExt};
 use onnx_ort_train_sentiment_dataset::text_label::{DatasetReader, TextLabel};
 use ort_training::OrtTraining;
-use tokio::{fs::{File, OpenOptions}, task::JoinSet};
+use tokio::{
+    fs::{File, OpenOptions},
+    task::JoinSet,
+};
 use tracing::{error, info, Level};
 use tracing_subscriber::registry::Data;
-
 
 pub mod ort_training;
 
@@ -88,7 +90,9 @@ impl Training {
         info!("training total lines: {}", self.total_records());
 
         if self.bin_chunks.is_none() || Some(0) == self.bin_chunks {
-            let s = self.inspect_do_by_files(0, self.dataset_bin.to_vec()).await?;
+            let s = self
+                .inspect_do_by_files(0, self.dataset_bin.to_vec())
+                .await?;
             return Ok(s);
         }
 
@@ -121,9 +125,7 @@ impl Training {
         Ok(sum)
     }
 
-
-
-// 一小批文件，对应 一个dataset_sink_writer
+    // 一小批文件，对应 一个dataset_sink_writer
     #[tracing_attributes::instrument(level = Level::INFO, name = "inspect_training", skip(files, self))]
     async fn inspect_do_by_files(&self, id: usize, files: Vec<PathBuf>) -> anyhow::Result<usize> {
         let r = self.do_training_by_files(id, &files).await;
@@ -141,27 +143,23 @@ impl Training {
     async fn do_training_by_files(&self, id: usize, files: &[PathBuf]) -> anyhow::Result<usize> {
         let dataset_begin = Instant::now();
         info!("Begin. training: id={}, files={:?}", id, files);
-        let s = stream::iter(files).then(|f| async move {
-            let f = OpenOptions::new()
-                .read(true)
-                .open(&f)
-                .await?;
-            let r = DatasetReader::<TextLabel, File>::new(f).await?;
-            Ok(r)
-        })
-        .map_ok(|read| read.into_stream())
-        .try_flatten()
-        .inspect_err(|e| error!("Do training by files, id = {id}: error = {:?}", e))
-        .try_ready_chunks(self.chunk_max_size)
-        .map_ok(|chunk| {
-            // let mut ort_training = self.ort_training.write()?;
-            // let loss = ort_training.setup(chunk);
-            
-            Ok(chunk.len())
-        });
-        
+        let s = stream::iter(files)
+            .then(|f| async move {
+                let f = OpenOptions::new().read(true).open(&f).await?;
+                let r = DatasetReader::<TextLabel, File>::new(f).await?;
+                Ok(r)
+            })
+            .map_ok(|read| read.into_stream())
+            .try_flatten()
+            .inspect_err(|e| error!("Do training by files, id = {id}: error = {:?}", e))
+            .try_ready_chunks(self.chunk_max_size)
+            .map_ok(|chunk| {
+                // let mut ort_training = self.ort_training.write()?;
+                // let loss = ort_training.setup(chunk);
+
+                Ok(chunk.len())
+            });
 
         todo!()
-
     }
 }

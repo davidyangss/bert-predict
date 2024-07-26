@@ -266,10 +266,23 @@ impl TextLabel {
 #[test]
 fn test_ids_bytes() {
     let ids = [567_u32, 123, 456, 789];
-    println!("ids: {}", ids.iter().map(|b| hex::encode(b.to_le_bytes())).collect::<Vec<String>>().join(","));
+    println!(
+        "ids: {}",
+        ids.iter()
+            .map(|b| hex::encode(b.to_le_bytes()))
+            .collect::<Vec<String>>()
+            .join(",")
+    );
     let tl = TextLabel::v1_style();
     let ids_bytes = tl.tokenizer_ids_as_bytes(&ids);
-    println!("ids_bytes: {}", ids_bytes.chunks_exact(2).map(|b| hex::encode(b)).collect::<Vec<String>>().join(","));
+    println!(
+        "ids_bytes: {}",
+        ids_bytes
+            .chunks_exact(2)
+            .map(|b| hex::encode(b))
+            .collect::<Vec<String>>()
+            .join(",")
+    );
     let ids_2 = tl.bytes_to_encoding_ids(&ids_bytes);
     assert_eq!(ids.to_vec(), ids_2);
 }

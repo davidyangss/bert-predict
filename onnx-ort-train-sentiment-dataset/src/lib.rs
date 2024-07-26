@@ -97,6 +97,27 @@ impl SinkDataset {
         Box::pin(sink)
     }
 
+    async fn write_tokinizer_encode(
+        dataset: &Arc<RwLock<Self>>, // 目测，不清楚tokinizer是否是线程安全的
+        records: Vec<Record>,
+        chunk_max_size: usize,
+    ) -> anyhow::Result<()> {
+        let s = stream::iter(records)
+            .then(|r| Self::encode_to_bytes(dataset, r))
+            .inspect_err(|e| error!("tokinizer encode error: {:?}", e))
+            .try_ready_chunks(chunk_max_size)
+            .inspect(|r| trace!("tokinizer encode to bytes, chunk size: {:?}", r))
+            .map_err(|e| anyhow::Error::from(e))
+            .take_while(|r| futures::future::ready(r.is_ok())) // 有错误就停止
+            .and_then(|vec| Self::write_bytes_to_dataset(dataset, vec))
+            .inspect_err(|e| error!("tokinizer write error: {:?}", e))
+            .take_while(|r| std::future::ready(r.is_ok())); // 有错误就停止
+        s.for_each_concurrent(num_cpus::get() * 3, |_| async {})
+            .await;
+        Ok(())
+        // warn!("Dataset.bin is written size: {}", dataset.size_of_written.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
     fn encode_to_bytes(
         dataset: &Arc<RwLock<Self>>,
         r: Record,
@@ -141,35 +162,12 @@ impl SinkDataset {
 
     fn write_bytes_to_dataset(
         dataset: &Arc<RwLock<Self>>,
-        r: Vec<anyhow::Result<TextLabel>>,
+        bufs: Vec<TextLabel>,
     ) -> impl Future<Output = anyhow::Result<()>> + 'static {
         let dataset = dataset.clone();
         async move {
             // 写文件
             let mut dataset = dataset.write().await;
-            let bufs = r
-                .into_iter() // Iter item Result时，遇到第一个Error停止
-                .fold(
-                    Ok(Vec::<TextLabel>::new()),
-                    |acc: anyhow::Result<Vec<TextLabel>>, r: anyhow::Result<TextLabel>| {
-                        if let Err(_) = acc {
-                            return acc;
-                        }
-
-                        match r {
-                            Err(e) => Err(anyhow::anyhow!(
-                                "write_tokinizer_encode write error: {}",
-                                e.to_string()
-                            )),
-                            Result::Ok(vv) => Ok({
-                                let mut acc = acc?;
-                                acc.push(vv);
-                                acc
-                            }),
-                        }
-                    },
-                );
-            let bufs = bufs?;
             let writer = &mut dataset.writer;
             let writed: anyhow::Result<usize> = writer.write_all(bufs.as_slice()).await;
             if let Err(e) = writed {
@@ -180,23 +178,5 @@ impl SinkDataset {
             }
             Ok(())
         }
-    }
-
-    async fn write_tokinizer_encode(
-        dataset: &Arc<RwLock<Self>>, // 目测，不清楚tokinizer是否是线程安全的
-        records: Vec<Record>,
-        chunk_max_size: usize,
-    ) -> anyhow::Result<()> {
-        let s = stream::iter(records)
-            .then(|r| Self::encode_to_bytes(dataset, r))
-            .inspect_err(|e| error!("tokinizer encode error: {:?}", e))
-            .ready_chunks(chunk_max_size)
-            .then(|r| Self::write_bytes_to_dataset(dataset, r))
-            .inspect_err(|e| error!("tokinizer write error: {:?}", e))
-            .take_while(|r| std::future::ready(r.is_ok())); // 有错误就停止
-        s.for_each_concurrent(num_cpus::get() * 3, |_| async {})
-            .await;
-        Ok(())
-        // warn!("Dataset.bin is written size: {}", dataset.size_of_written.load(std::sync::atomic::Ordering::SeqCst));
     }
 }

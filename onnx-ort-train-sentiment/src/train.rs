@@ -124,7 +124,10 @@ fn main() -> anyhow::Result<()> {
         args().chunk_max_size,
         ort_training,
     )?;
-    info!("ort_training created, will train {}", training.total_records());
+    info!(
+        "ort_training created, will train {}",
+        training.total_records()
+    );
 
     block_on(training.spawn_training_task())
 }
