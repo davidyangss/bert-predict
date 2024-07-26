@@ -1,20 +1,24 @@
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom, Write},
-    path::{Path, PathBuf}, sync::OnceLock,
+    path::{Path, PathBuf},
+    sync::{Arc, OnceLock, RwLock},
+    time::Instant,
 };
 
-use anyhow::Ok;
+use anyhow::{anyhow, Ok};
 use kdam::BarExt;
 use ndarray::{concatenate, s, Array1, Array2, ArrayViewD, Axis};
+use onnx_ort_train_sentiment::ort_training;
+use onnx_ort_train_sentiment::Training;
 use ort::{Allocator, CUDAExecutionProvider, Checkpoint, Session, SessionBuilder, Trainer};
 use tokenizers::Tokenizer;
 
 use clap::{Parser, ValueHint};
 use lazy_static::lazy_static;
-use tracing::info;
+use tokio::task::JoinSet;
+use tracing::{error, info, Level};
 use yss_commons::commons_tokio::*;
-
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -89,5 +93,38 @@ fn main() -> anyhow::Result<()> {
         std::env::current_dir()?.display()
     );
 
-    Ok(())
+    args().dataset_bin.iter().for_each(|v| {
+        if !v.exists() {
+            panic!("dataset-bin not exists, it {}", v.display());
+        }
+    });
+    let out_trained_onnx_parsent = args().out_trained_onnx.parent().ok_or(anyhow!(
+        "--out-trained-onnx error: {}",
+        args().out_trained_onnx.display()
+    ))?;
+    if !out_trained_onnx_parsent.exists() {
+        std::fs::create_dir_all(out_trained_onnx_parsent)?;
+    }
+
+    let ort_training = ort_training::OrtTrainingBuilder::default()
+        .with_checkpoint(&args().checkpoint_file)
+        .with_training_model(&args().training_model_file)
+        .with_eval_model(&args().eval_model_file)
+        .with_optimizer_model(&args().optimizer_model_file)
+        .with_tokenizer_json(&args().tokenizer_json)
+        .with_out_trained_onnx(&args().out_trained_onnx)
+        .with_optimizer_lr(args().optimizer_lr)
+        .build()?;
+    info!("ort_training created");
+
+    let ort_training = Arc::new(RwLock::new(ort_training));
+    let training = Training::new(
+        args().dataset_bin.clone(),
+        args().bin_chunks,
+        args().chunk_max_size,
+        ort_training,
+    )?;
+    info!("ort_training created, will train {}", training.total_records());
+
+    block_on(training.spawn_training_task())
 }

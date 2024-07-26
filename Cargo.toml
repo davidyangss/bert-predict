@@ -57,6 +57,7 @@ num_cpus = "1.16.0"
 hex = "0.4"
 
 yss-commons = { path = "." }
+onnx-ort-train-sentiment-dataset = { path = "onnx-ort-train-sentiment-dataset" }
 
 
 [package]

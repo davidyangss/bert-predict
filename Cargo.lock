@@ -1394,6 +1394,7 @@ dependencies = [
  "lazy_static",
  "ndarray",
  "num_cpus",
+ "onnx-ort-train-sentiment-dataset",
  "ort",
  "pin-project-lite",
  "rand",

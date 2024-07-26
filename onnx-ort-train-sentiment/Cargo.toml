@@ -37,6 +37,7 @@ num_cpus.workspace = true
 hex.workspace = true
 
 yss-commons.workspace = true
+onnx-ort-train-sentiment-dataset.workspace = true
 
 [dev-dependencies]
 rand = "0.8"
@@ -46,6 +47,9 @@ simd-json = "0.13"
 [[bin]]
 name = "train"
 path = "src/train.rs"
+
+[lib]
+path = "src/lib.rs"
 
 # build.rs中配置
 # [target.x86_64-unknown-linux-gnu]
