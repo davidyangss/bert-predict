@@ -11,7 +11,7 @@ use std::{
     sync::{atomic::AtomicUsize, Arc},
 };
 
-use anyhow::Ok;
+use anyhow::{anyhow, Ok};
 use csv::Record;
 use futures::{
     sink::{self},
@@ -49,7 +49,8 @@ impl SinkDataset {
         tokenizer_json: &PathBuf,
         out_dataset_bin: &PathBuf,
     ) -> Result<Self, anyhow::Error> {
-        let tokinizer = Tokenizer::from_file(tokenizer_json.clone()).unwrap();
+        let tokinizer = Tokenizer::from_file(tokenizer_json.clone())
+            .map_err(|_| anyhow!("create tokenizer fail"))?;
         let out_dataset_bin = out_dataset_bin.clone();
         let out_dataset_bin = out_dataset_bin.join(format!("dataset-{}.bin", id));
         let f = OpenOptions::new()

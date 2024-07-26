@@ -8,25 +8,39 @@ edition = "2021"
 cuda = ["ort/cuda"]
 
 [dependencies]
-ort = { version = "2.0.0-rc.4", default-features = false, features = [
-    "ndarray",
-    "half",
-    "training",
-    "load-dynamic",
-] }
-ndarray = "0.15"
-half = "2.1"
-tokenizers = { version = ">=0.13.4", default-features = false, features = [
-    "onig",
-] }
+async-stream = { version = "0.3.5", optional = true }
+futures-async-stream = { version = "0.2", optional = true }
+
+ort.workspace = true
+ndarray.workspace = true
+half.workspace = true
+tokenizers.workspace = true
+kdam.workspace = true
+serde.workspace = true
+
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-attributes.workspace = true
+tracing-appender.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tokio-metrics.workspace = true
+tokio-console.workspace = true
+futures.workspace = true
+futures-util.workspace = true
+pin-project-lite.workspace = true
+
+anyhow.workspace = true
+clap.workspace = true
+lazy_static.workspace = true
+num_cpus.workspace = true
+hex.workspace = true
+
+yss-commons.workspace = true
+
+[dev-dependencies]
 rand = "0.8"
 simd-json = "0.13"
-kdam = "0.5"
-tracing-subscriber = { version = "0.3", default-features = false, features = [
-    "env-filter",
-    "fmt",
-] }
-tracing = "0.1"
 
 
 [[bin]]

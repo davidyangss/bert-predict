@@ -1,151 +1,93 @@
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom, Write},
-    path::Path,
+    path::{Path, PathBuf}, sync::OnceLock,
 };
 
+use anyhow::Ok;
 use kdam::BarExt;
 use ndarray::{concatenate, s, Array1, Array2, ArrayViewD, Axis};
 use ort::{Allocator, CUDAExecutionProvider, Checkpoint, Session, SessionBuilder, Trainer};
-use rand::RngCore;
 use tokenizers::Tokenizer;
 
-const BATCH_SIZE: usize = 16;
-const SEQUENCE_LENGTH: usize = 256;
+use clap::{Parser, ValueHint};
+use lazy_static::lazy_static;
+use tracing::info;
+use yss_commons::commons_tokio::*;
 
-fn main() -> ort::Result<()> {
-    tracing_subscriber::fmt::init();
 
-    ort::init().commit()?;
+#[derive(Parser, Debug)]
+#[command(version, about)]
+pub struct Args {
+    /// pretrained dataset bin files
+    #[arg(short = 'f', long, value_parser, num_args = 1.., value_delimiter = ' ', required = true)]
+    pub dataset_bin: Vec<PathBuf>,
 
-    kdam::term::init(true);
-    let _ = kdam::term::hide_cursor();
+    /// tokenizer json file, example: examples/gpt2/data/tokenizer.json
+    #[arg(long, value_parser, value_hint = ValueHint::FilePath, required = true)]
+    pub tokenizer_json: PathBuf,
 
-    let s = SessionBuilder::new()?;
-    let p = s.with_execution_providers([CUDAExecutionProvider::default().build()])?;
-    let trainer = Trainer::new(
-        p,
-        Allocator::default(),
-        Checkpoint::load(
-            "/home/yangss/workspace/rust/ort.git/tools/train-data/mini-clm/checkpoint",
-        )?,
-        "/home/yangss/workspace/rust/ort.git/tools/train-data/mini-clm/training_model.onnx",
-        "/home/yangss/workspace/rust/ort.git/tools/train-data/mini-clm/eval_model.onnx",
-        "/home/yangss/workspace/rust/ort.git/tools/train-data/mini-clm/optimizer_model.onnx",
-    )?;
+    /// Trainer checkpoint file, example: tools/train-data/mini-clm/checkpoint
+    #[arg(long, value_parser, value_hint = ValueHint::FilePath, required = true)]
+    pub checkpoint_file: PathBuf,
 
-    println!("trainer created!");
+    /// Training model file, example: tools/train-data/mini-clm/training_model.onnx
+    #[arg(long, value_parser, value_hint = ValueHint::FilePath, required = true)]
+    pub training_model_file: PathBuf,
 
-    let tokenizer = Tokenizer::from_file(Path::new(
-        "/home/yangss/workspace/rust/ort.git/examples/gpt2/data/tokenizer.json",
-    ))
-    .unwrap();
+    /// Eval model file, example: tools/train-data/mini-clm/eval_model.onnx
+    #[arg(long, value_parser, value_hint = ValueHint::FilePath, required = true)]
+    pub eval_model_file: PathBuf,
 
-    println!("tokenizer created!");
+    /// Optimizer model file, example: tools/train-data/mini-clm/optimizer_model.onnx
+    #[arg(long, value_parser, value_hint = ValueHint::FilePath, required = true)]
+    pub optimizer_model_file: PathBuf,
 
-    let optimizer = trainer.optimizer();
-    optimizer.set_lr(7e-5)?;
+    #[arg(long, value_parser, default_value = "7e-5")]
+    pub optimizer_lr: f32,
 
-    let mut dataset =
-        File::open("/home/yangss/workspace/rust/ort.git/tools/train-data/mini-clm/dataset.bin")
-            .unwrap();
-    let file_size = dataset.metadata().unwrap().len();
-    let num_tokens = (file_size / 2) as usize; // 16-bit tokens
-    let mut rng = rand::thread_rng();
+    #[arg(long, value_parser, value_hint = ValueHint::FilePath, required = true)]
+    pub out_trained_onnx: PathBuf,
 
-    let mut input_buffer = vec![0u16; SEQUENCE_LENGTH * BATCH_SIZE];
-    let mut label_buffer = vec![0u16; SEQUENCE_LENGTH * BATCH_SIZE];
-    let mut pb = kdam::tqdm!(total = 5000);
-    for _ in 0..5000 {
-        for batch in 0..BATCH_SIZE {
-            let start_idx = rng.next_u64() % (num_tokens - SEQUENCE_LENGTH - 1) as u64;
-            dataset.seek(SeekFrom::Start(start_idx * 2)).unwrap();
-            dataset
-                .read_exact(unsafe {
-                    std::slice::from_raw_parts_mut(
-                        input_buffer[batch * SEQUENCE_LENGTH..(batch + 1) * SEQUENCE_LENGTH]
-                            .as_mut_ptr()
-                            .cast::<u8>(),
-                        SEQUENCE_LENGTH * 2,
-                    )
-                })
-                .unwrap();
-            dataset.seek(SeekFrom::Start((start_idx + 1) * 2)).unwrap();
-            dataset
-                .read_exact(unsafe {
-                    std::slice::from_raw_parts_mut(
-                        label_buffer[batch * SEQUENCE_LENGTH..(batch + 1) * SEQUENCE_LENGTH]
-                            .as_mut_ptr()
-                            .cast::<u8>(),
-                        SEQUENCE_LENGTH * 2,
-                    )
-                })
-                .unwrap();
-        }
+    #[arg(short = 'l', long, default_value = "INFO")]
+    pub log_level: String,
 
-        let inputs = Array2::<i64>::from_shape_vec(
-            [BATCH_SIZE, SEQUENCE_LENGTH],
-            input_buffer.iter().map(|c| *c as i64).collect(),
-        )
-        .unwrap();
-        let labels = Array1::<i64>::from_shape_vec(
-            [BATCH_SIZE * SEQUENCE_LENGTH],
-            label_buffer.iter().map(|c| *c as i64).collect(),
-        )
-        .unwrap();
+    #[arg(long)]
+    pub log_file: Option<PathBuf>,
 
-        let outputs = trainer.step(ort::inputs![inputs.view()]?, ort::inputs![labels.view()]?)?;
-        let loss = outputs[0].try_extract_scalar::<f32>()?;
-        pb.set_postfix(format!("loss={loss:.3}"));
-        pb.update(1).unwrap();
-        if loss.is_nan() {
-            return Ok(());
-        }
-        optimizer.step()?;
-        optimizer.reset_grad()?;
-    }
+    #[arg(long)]
+    pub log_display_target: Option<bool>,
 
-    eprintln!();
-    let _ = kdam::term::show_cursor();
+    /// At the same time, unordered files size. dataset.bin files is split to chunks by this size
+    #[arg(long)]
+    pub bin_chunks: Option<usize>,
 
-    trainer.export("trained-clm.onnx", ["probs"])?;
+    /// It is max size of chunk, when import dataset items
+    #[arg(long, default_value = "100")]
+    chunk_max_size: usize,
+}
 
-    let session = Session::builder()?.commit_from_file("trained-clm.onnx")?;
+lazy_static! {
+    static ref COMMAND_ARGS: OnceLock<Args> = OnceLock::new();
+}
 
-    let mut stdout = std::io::stdout();
+// #[cfg(not(test))]
+pub fn args() -> &'static Args {
+    COMMAND_ARGS.get_or_init(Args::parse)
+}
 
-    let tokens = tokenizer.encode("<|endoftext|>", false).unwrap();
-    let tokens = tokens
-        .get_ids()
-        .iter()
-        .map(|i| *i as i64)
-        .collect::<Vec<_>>();
+// cargo run -p onnx-ort-train-sentiment -- --bin-chunks=1 --optimizer-lr=7e-5 --tokenizer-json="./tools/google-bert-chinese/model/tokenizer.json" --checkpoint-file="./tools/google-bert-chinese/onnx-training/checkpoint" --training-model-file="./tools/google-bert-chinese/onnx-training/training_model.onnx" --eval-model-file="./tools/google-bert-chinese/onnx-training/eval_model.onnx" --optimizer-model-file="./tools/google-bert-chinese/onnx-training/optimizer_model.onnx" --out-trained-onnx="./target/trained_model.onnx" --dataset-bin="./target/dataset.bin/dataset-0.bin"
+fn main() -> anyhow::Result<()> {
+    setup_tracing(
+        &args().log_level,
+        args().log_file.as_ref(),
+        args().log_display_target,
+    );
+    info!(
+        "OK. command args: {:?}, CWD={} ",
+        args(),
+        std::env::current_dir()?.display()
+    );
 
-    let mut tokens = Array1::from_iter(tokens.iter().cloned());
-
-    for _ in 0..50 {
-        let array = tokens.view().insert_axis(Axis(0));
-        let outputs = session.run(ort::inputs![array]?)?;
-        let generated_tokens: ArrayViewD<f32> = outputs["probs"].try_extract_tensor()?;
-
-        let probabilities = &mut generated_tokens
-            .slice(s![-1, ..])
-            .to_owned()
-            .iter()
-            .cloned()
-            .enumerate()
-            .collect::<Vec<_>>();
-        probabilities
-            .sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Less));
-
-        let token = probabilities[0].0;
-        tokens = concatenate![Axis(0), tokens, ndarray::array![token.try_into().unwrap()]];
-
-        let token_str = tokenizer.decode(&[token as _], false).unwrap();
-        print!("{}", token_str);
-        stdout.flush().unwrap();
-    }
-
-    println!();
     Ok(())
 }

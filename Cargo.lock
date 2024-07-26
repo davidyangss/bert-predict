@@ -1382,15 +1382,33 @@ dependencies = [
 name = "onnx-ort-train-sentiment"
 version = "0.0.0"
 dependencies = [
+ "anyhow",
+ "async-stream",
+ "clap",
+ "futures",
+ "futures-async-stream",
+ "futures-util",
  "half",
+ "hex",
  "kdam",
+ "lazy_static",
  "ndarray",
+ "num_cpus",
  "ort",
+ "pin-project-lite",
  "rand",
+ "serde",
  "simd-json",
  "tokenizers",
+ "tokio",
+ "tokio-console",
+ "tokio-metrics",
+ "tokio-stream",
  "tracing",
+ "tracing-appender",
+ "tracing-attributes",
  "tracing-subscriber",
+ "yss-commons",
 ]
 
 [[package]]

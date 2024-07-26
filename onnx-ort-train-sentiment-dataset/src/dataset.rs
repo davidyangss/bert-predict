@@ -14,7 +14,6 @@ use lazy_static::lazy_static;
 use onnx_ort_train_sentiment_dataset::{csv::chunks_train_records, prelude::*, SinkDataset};
 use yss_commons::commons_tokio::{block_on, setup_tracing};
 
-/// Simple program to greet a person
 #[derive(Parser, Debug)]
 #[command(version, about)]
 pub struct Args {
@@ -44,7 +43,7 @@ pub struct Args {
 
     /// At the same time, unordered files size. csv files is split to chunks by this size
     #[arg(long)]
-    pub split_size: Option<usize>,
+    pub files_chunks: Option<usize>,
 
     /// It is max size of chunk, when import csv line
     #[arg(long, default_value = "100")]
@@ -67,7 +66,7 @@ pub fn args() -> &'static Args {
 //     })
 // }
 
-/// cargo run -r -p onnx-ort-train-sentiment-dataset -- --tokenizer-json="./tools/google-bert-chinese/model/tokenizer.json" --split-size=1 --out-dataset-bin="./target/dataset.bin" --csvs="./onnx-ort-train-sentiment-dataset/data/train.csv"
+/// cargo run -r -p onnx-ort-train-sentiment-dataset -- --tokenizer-json="./tools/google-bert-chinese/model/tokenizer.json" --files-chunks=1 --out-dataset-bin="./target/dataset.bin" --csvs="./onnx-ort-train-sentiment-dataset/data/train.csv"
 // #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 fn main() -> anyhow::Result<()> {
     setup_tracing(
@@ -124,14 +123,14 @@ async fn spawn_dataset_task() -> anyhow::Result<()> {
 }
 
 async fn dataset_do() -> anyhow::Result<usize> {
-    if args().split_size.is_none() || Some(0) == args().split_size {
+    if args().files_chunks.is_none() || Some(0) == args().files_chunks {
         let t = inspect_do_by_files(0, args().csvs.to_vec()).await?;
         return Ok(t);
     }
 
     let mut tasks = args()
         .csvs
-        .chunks(args().split_size.unwrap())
+        .chunks(args().files_chunks.unwrap())
         .enumerate()
         .map(|(id, files)| inspect_do_by_files(id, files.to_vec()))
         .fold(JoinSet::new(), |mut set, fut| {
@@ -189,13 +188,25 @@ async fn dataset_do_by_files(id: usize, files: &[PathBuf]) -> anyhow::Result<usi
 
     let dataset = dataset_sink_writer.read().await;
     let total = dataset.total_lines();
+    let out = dataset.out_dataset_bin().to_path_buf();
+    let mut out_with_lines = out.clone();
+    out_with_lines.set_file_name(format!("dataset-{}-{}.bin", id, total));
+    std::fs::rename(&out, &out_with_lines).inspect_err(|e| {
+        error!(
+            "rename {} to {} error: {:?}",
+            out.display(),
+            out_with_lines.display(),
+            e
+        );
+    })?;
+
     info!(
         "Done(cost: {}). dataset: id={}, total = {}, bytes = {}, bin file = {}",
         dataset_begin.elapsed().as_secs_f32(),
         id,
         total,
         dataset.size_of_written(),
-        dataset.out_dataset_bin().display()
+        out_with_lines.display()
     );
     anyhow::Result::Ok(total)
 }

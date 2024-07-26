@@ -11,6 +11,21 @@ default-members = [
 ]
 
 [workspace.dependencies]
+ort = { version = "2.0.0-rc.4", default-features = false, features = [
+    "ndarray",
+    "half",
+    "training",
+    "load-dynamic",
+] }
+ndarray = "0.15"
+half = "2.1"
+tokenizers = { version = ">=0.13.4", default-features = false, features = [
+    "onig",
+] }
+kdam = "0.5"
+csv-async = { version = "1.3.0", features = ["with_serde", "tokio"] }
+serde = "1.0.204"
+
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = [
     "env-filter",
