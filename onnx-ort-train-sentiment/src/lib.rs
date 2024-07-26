@@ -151,10 +151,11 @@ impl Training {
             })
             .map_ok(|read| read.into_stream())
             .try_flatten()
-            .inspect_err(|e| error!("Do training by files, id = {id}: error = {:?}", e))
+            .inspect_err(|e| error!("Do training by files, id = {id}: error = {e:?}"))
             .try_ready_chunks(self.chunk_max_size)
-            .map_ok(|chunk| {
-                // let mut ort_training = self.ort_training.write()?;
+            .map_err(|e|e.into())
+            .and_then(|chunk| async move{
+                let mut ort_training = self.ort_training.write()?;
                 // let loss = ort_training.setup(chunk);
 
                 Ok(chunk.len())
