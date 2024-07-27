@@ -92,8 +92,8 @@ pub fn train_records<'a>(
 pub fn chunks_train_records<'a>(
     files: &'a [PathBuf],
     csv_delimiter: char,
-    chunk_max_size: usize,
+    training_batch_size: usize,
 ) -> impl Stream<Item = anyhow::Result<Vec<Record>>> + Unpin + 'a {
-    let s = train_records(files, csv_delimiter).try_ready_chunks(chunk_max_size);
+    let s = train_records(files, csv_delimiter).try_ready_chunks(training_batch_size);
     return s.map_err(|e| e.into());
 }

@@ -47,7 +47,7 @@ pub struct Args {
 
     /// It is max size of chunk, when import csv line
     #[arg(long, default_value = "100")]
-    chunk_max_size: usize,
+    training_batch_size: usize,
 }
 
 lazy_static! {
@@ -178,19 +178,20 @@ async fn dataset_do_by_files(id: usize, files: &[PathBuf]) -> anyhow::Result<usi
     let dataset_sink_writer = Arc::new(RwLock::new(
         SinkDataset::new_by_args(id, &args().tokenizer_json, &args().out_dataset_bin).await?,
     ));
-    let _ = chunks_train_records(&files, args().csv_delimiter, args().chunk_max_size)
+    let _ = chunks_train_records(&files, args().csv_delimiter, args().training_batch_size)
         .take_while(|r| futures::future::ready(r.is_ok()))
         .forward(SinkDataset::dataset_sink(
             (&dataset_sink_writer).clone(),
-            args().chunk_max_size,
+            args().training_batch_size,
         ))
         .await?;
 
     let dataset = dataset_sink_writer.read().await;
     let total = dataset.total_lines();
+    let ids_max_len = dataset.ids_max_len();
     let out = dataset.out_dataset_bin().to_path_buf();
     let mut out_with_lines = out.clone();
-    out_with_lines.set_file_name(format!("dataset-{}-{}.bin", id, total));
+    out_with_lines.set_file_name(format!("dataset-{id}-{total}-{ids_max_len}.bin"));
     std::fs::rename(&out, &out_with_lines).inspect_err(|e| {
         error!(
             "rename {} to {} error: {:?}",
@@ -201,10 +202,8 @@ async fn dataset_do_by_files(id: usize, files: &[PathBuf]) -> anyhow::Result<usi
     })?;
 
     info!(
-        "Done(cost: {}). dataset: id={}, total = {}, bytes = {}, bin file = {}",
+        "Done(cost: {}). dataset: id={id}, total = {total}, ids_max_len = {ids_max_len}, bytes = {}, bin file = {}",
         dataset_begin.elapsed().as_secs_f32(),
-        id,
-        total,
         dataset.size_of_written(),
         out_with_lines.display()
     );

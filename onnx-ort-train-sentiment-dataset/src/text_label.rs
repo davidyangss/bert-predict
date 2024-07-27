@@ -91,6 +91,7 @@ pin_project_lite::pin_project! {
         buf_writer: BufWriter<W>,
         writing_item_style: T,
         size_of_written: AtomicUsize,
+        ids_max_len: AtomicUsize,
         _phantom: std::marker::PhantomData<T>,
     }
 }
@@ -107,6 +108,7 @@ impl<W: AsyncWrite + Unpin> DatasetWriter<TextLabel, W> {
             buf_writer: buf_writer,
             writing_item_style: writing_item_style,
             size_of_written: size_of_written,
+            ids_max_len: AtomicUsize::new(0),
             _phantom: std::marker::PhantomData,
         };
 
@@ -133,6 +135,34 @@ impl<W: AsyncWrite + Unpin> DatasetWriter<TextLabel, W> {
 
     pub fn item_style(&self) -> &TextLabel {
         &self.writing_item_style
+    }
+
+    pub fn update(&mut self, ids_max_len: Option<usize>) {
+        if None == ids_max_len {
+            return;
+        }
+        let ids_max_len = ids_max_len.unwrap();
+        loop {
+            let old = self.ids_max_len.load(std::sync::atomic::Ordering::Relaxed);
+            if old >= ids_max_len {
+                break;
+            }
+            if self
+                .ids_max_len
+                .compare_exchange(
+                    old,
+                    ids_max_len,
+                    std::sync::atomic::Ordering::Relaxed,
+                    std::sync::atomic::Ordering::Relaxed,
+                )
+                .is_ok()
+            {
+                break;
+            }
+        }
+    }
+    pub fn ids_max_len(&self) -> usize {
+        self.ids_max_len.load(std::sync::atomic::Ordering::Relaxed)
     }
 }
 
@@ -253,12 +283,38 @@ impl TextLabel {
             .collect()
     }
 
-    pub fn bytes_to_encoding_ids(&self, bytes: &[u8]) -> Vec<u32> {
+    pub fn bytes_to_encoding_ids<T: From<u16> + Default>(&self, bytes: &[u8]) -> Vec<T> {
+        let mut targets = Vec::<T>::with_capacity(bytes.len() / 2);
+        targets.resize_with(targets.capacity(), || <T as Default>::default());
+        self.bytes_into_encoding_ids(bytes, targets.as_mut_slice());
+        targets
+    }
+
+    pub fn bytes_into_encoding_ids<T: From<u16>>(&self, bytes: &[u8], targets: &mut [T]) {
         match self {
             Self::V1(_) => bytes
                 .chunks_exact(2)
-                .map(|c| u16::from_le_bytes(c.try_into().unwrap()) as u32)
-                .collect(),
+                .map(|c| {
+                    TryInto::<T>::try_into(u16::from_le_bytes(
+                        c.try_into().expect("can not get a u16 bytes"),
+                    ))
+                    .expect(&format!("u16 can not into u{}", std::mem::size_of::<T>()))
+                })
+                .enumerate()
+                .for_each(move |(i, t)| {
+                    if i >= targets.len() {
+                        trace!("When bytes into encoding ids, targets too short, drop some data");
+                        return;
+                    }
+                    targets[i] = t;
+                }),
+        }
+    }
+
+    /// v1: ids为u32的数组，每个u32转为u16的bytes
+    pub fn tokenizer_ids_len(&self, bytes: &[u8]) -> usize {
+        match self {
+            Self::V1(_) => bytes.len() / 2,
         }
     }
 }
@@ -283,8 +339,20 @@ fn test_ids_bytes() {
             .collect::<Vec<String>>()
             .join(",")
     );
-    let ids_2 = tl.bytes_to_encoding_ids(&ids_bytes);
+    let ids_2 = tl.bytes_to_encoding_ids::<u32>(&ids_bytes);
+    println!(
+        "ids_2: {}",
+        ids_2
+            .iter()
+            .map(|b| hex::encode(b.to_le_bytes()))
+            .collect::<Vec<String>>()
+            .join(",")
+    );
     assert_eq!(ids.to_vec(), ids_2);
+
+    let mut ids_3 = vec![0u32; ids_2.len()];
+    tl.bytes_into_encoding_ids(&ids_bytes, ids_3.as_mut_slice());
+    assert_eq!(ids_3, ids_2);
 }
 
 impl TextLabelBytes for TextLabel {

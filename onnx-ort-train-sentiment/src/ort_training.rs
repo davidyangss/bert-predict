@@ -1,37 +1,101 @@
 use std::path::{Path, PathBuf};
 
-use ndarray::{concatenate, s, Array1, Array2, ArrayViewD, Axis};
-use onnx_ort_train_sentiment_dataset::text_label::{self, TextLabel};
-use ort::{
-    Allocator, CUDAExecutionProvider, Checkpoint, CheckpointStrategy, Session, SessionBuilder,
-    Trainer, TrainingArguments,
-};
+use onnx_ort_train_sentiment_dataset::text_label::{TextLabel, TextLabelBytes as _};
+use ort::{Allocator, CUDAExecutionProvider, Checkpoint, SessionBuilder, Trainer};
 use tokenizers::Tokenizer;
-use tracing::info;
+use tracing::{info, trace};
 
 pub struct OrtTraining {
     trainer: Trainer,
-    tokenizer: Tokenizer,
+    _tokenizer: Tokenizer,
     out_trained_onnx: PathBuf,
+
+    _training_steps: usize,
+    _training_batch_size: usize,
+    training_sequence_length: usize,
+
+    _ids_max_len: usize,
 }
 
 impl OrtTraining {
-    fn step(&self, inputs: Vec<i64>, labels: Vec<i64>) -> anyhow::Result<f32> {
-        self._step(inputs, labels).map_err(|e| anyhow::anyhow!(e))
-    }
-    fn _step(&self, inputs: Vec<i64>, labels: Vec<i64>) -> ort::Result<f32> {
-        let trainer = &self.trainer;
-        let inputs = Array2::<i64>::from_shape_vec([0, inputs.len()], inputs).unwrap();
-        let labels = Array1::<i64>::from_shape_vec([0], labels).unwrap();
+    pub fn step(&self, batch: &[TextLabel]) -> anyhow::Result<f32> {
+        let mut inputs = vec![0i64; batch.len() * self.training_sequence_length];
+        let mut labels = Vec::<i64>::with_capacity(batch.len());
+        trace!(
+            "step batch: shape: [{}, {}], labels = {}",
+            batch.len(),
+            self.training_sequence_length,
+            labels.capacity()
+        );
+        for i in 0..batch.len() {
+            let text_label = &batch[i];
+            let target = inputs.as_mut_slice();
+            let target = target
+                [i * self.training_sequence_length..(i + 1) * self.training_sequence_length]
+                .as_mut();
+            text_label.bytes_into_encoding_ids::<i64>(text_label.id_bytes(), target);
+            let label = text_label.bytes_to_encoding_ids::<i64>(text_label.label_bytes());
+            if label.len() != 1 {
+                return Err(anyhow::anyhow!("label.len() != 1, label bytes error"));
+            }
+            labels.extend(label);
+        }
 
-        let outputs = trainer.step(ort::inputs![inputs.view()]?, ort::inputs![labels.view()]?)?;
-        let loss = outputs[0].try_extract_scalar::<f32>()?;
+        trace!(
+            "step inputs: {} / {:?}",
+            inputs.len(),
+            inputs
+                .iter()
+                .map(|i| format!("{}", hex::encode(&i.to_le_bytes())))
+                .collect::<Vec<String>>()
+        );
+        trace!("step labels: {:?}", labels);
+
+        let trainer = &self.trainer;
+        let inputs = ndarray::Array2::<i64>::from_shape_vec(
+            [batch.len(), self.training_sequence_length],
+            inputs,
+        )
+        .map_err(|e| anyhow::anyhow!("Array2::<i64>::from_shape_vec(inputs), error: {e}"))?;
+        let labels = ndarray::Array1::<i64>::from_shape_vec([labels.len()], labels)
+            .map_err(|e| anyhow::anyhow!("Array1::<i64>::from_shape_vec(labels), error: {e}"))?;
+
+        trace!("step ndarray inputs: {:?}", inputs);
+        trace!("step ndarray labels: {:?}", labels);
+
+        let inputs = ort::inputs![inputs.view()]
+            .map_err(|e| anyhow::anyhow!("ort::inputs![inputs.view()], error: {e}"))?;
+        let labels = ort::inputs![labels.view()]
+            .map_err(|e| anyhow::anyhow!("ort::inputs![labels.view()], error: {e}"))?;
+        let outputs = trainer
+            .step(inputs, labels)
+            .map_err(|e| anyhow::anyhow!("trainer.step(inputs, labels), error: {e}"))?;
+        let loss = outputs[0]
+            .try_extract_scalar::<f32>()
+            .map_err(|e| anyhow::anyhow!("outputs[0].try_extract_scalar::<f32>(), error: {e}"))?;
         if loss.is_nan() {
             return Ok(loss);
         }
-        trainer.optimizer().step()?;
-        trainer.optimizer().reset_grad()?;
+        trainer
+            .optimizer()
+            .step()
+            .map_err(|e| anyhow::anyhow!("trainer.optimizer().step(), error: {e}"))?;
+        trainer
+            .optimizer()
+            .reset_grad()
+            .map_err(|e| anyhow::anyhow!("trainer.optimizer().reset_grad(), error: {e}"))?;
         return Ok(loss);
+    }
+
+    pub fn export(&self) -> anyhow::Result<()> {
+        self.trainer
+            .export(&self.out_trained_onnx, ["probs"])
+            .map_err(|e| anyhow::anyhow!("trainer.export, error: {e}"))?;
+        Ok(())
+    }
+
+    pub fn out_trained_onnx(&self) -> &Path {
+        self.out_trained_onnx.as_path()
     }
 }
 
@@ -45,6 +109,12 @@ pub struct OrtTrainingBuilder {
     tokenizer_json: PathBuf,
     out_trained_onnx: PathBuf,
     optimizer_lr: f32,
+
+    idxs_max_len: usize,
+
+    training_steps: usize,
+    training_batch_size: usize,
+    training_sequence_length: usize,
 }
 
 impl Default for OrtTrainingBuilder {
@@ -57,6 +127,10 @@ impl Default for OrtTrainingBuilder {
             tokenizer_json: Default::default(),
             out_trained_onnx: Default::default(),
             optimizer_lr: Default::default(),
+            training_steps: Default::default(),
+            training_batch_size: Default::default(),
+            training_sequence_length: Default::default(),
+            idxs_max_len: Default::default(),
         }
     }
 }
@@ -97,6 +171,26 @@ impl OrtTrainingBuilder {
         self
     }
 
+    pub fn with_training_steps(mut self, training_steps: usize) -> Self {
+        self.training_steps = training_steps;
+        self
+    }
+
+    pub fn with_training_batch_size(mut self, training_batch_size: usize) -> Self {
+        self.training_batch_size = training_batch_size;
+        self
+    }
+
+    pub fn with_training_sequence_length(mut self, training_sequence_length: usize) -> Self {
+        self.training_sequence_length = training_sequence_length;
+        self
+    }
+
+    pub fn with_ids_max_len(mut self, idxs_max_len: usize) -> Self {
+        self.idxs_max_len = idxs_max_len;
+        self
+    }
+
     pub fn build(self) -> anyhow::Result<OrtTraining> {
         ort::init().commit()?;
 
@@ -120,8 +214,12 @@ impl OrtTrainingBuilder {
 
         Ok(OrtTraining {
             trainer,
-            tokenizer,
+            _tokenizer: tokenizer,
             out_trained_onnx: self.out_trained_onnx,
+            _training_steps: self.training_steps,
+            _training_batch_size: self.training_batch_size,
+            training_sequence_length: self.training_sequence_length,
+            _ids_max_len: self.idxs_max_len,
         })
     }
 }

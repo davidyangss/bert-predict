@@ -55,6 +55,7 @@ lazy_static = "1.5.0"
 anyhow = "1"
 num_cpus = "1.16.0"
 hex = "0.4"
+regex = "1.10"
 
 yss-commons = { path = "." }
 onnx-ort-train-sentiment-dataset = { path = "onnx-ort-train-sentiment-dataset" }

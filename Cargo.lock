@@ -1398,6 +1398,7 @@ dependencies = [
  "ort",
  "pin-project-lite",
  "rand",
+ "regex",
  "serde",
  "simd-json",
  "tokenizers",

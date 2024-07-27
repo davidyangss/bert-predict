@@ -1,23 +1,17 @@
-use std::{
-    fs::File,
-    io::{Read, Seek, SeekFrom, Write},
-    path::{Path, PathBuf},
-    sync::{Arc, OnceLock, RwLock},
-    time::Instant,
-};
+use std::{path::PathBuf, sync::OnceLock};
 
 use anyhow::{anyhow, Ok};
 use kdam::BarExt;
-use ndarray::{concatenate, s, Array1, Array2, ArrayViewD, Axis};
-use onnx_ort_train_sentiment::ort_training;
-use onnx_ort_train_sentiment::Training;
-use ort::{Allocator, CUDAExecutionProvider, Checkpoint, Session, SessionBuilder, Trainer};
-use tokenizers::Tokenizer;
+use onnx_ort_train_sentiment::{
+    ort_training::{self},
+    NextTraining,
+};
+use onnx_ort_train_sentiment_dataset::text_label::TextLabel;
 
 use clap::{Parser, ValueHint};
 use lazy_static::lazy_static;
-use tokio::task::JoinSet;
-use tracing::{error, info, Level};
+use tokio::sync::mpsc;
+use tracing::{debug, error, info, trace};
 use yss_commons::commons_tokio::*;
 
 #[derive(Parser, Debug)]
@@ -64,11 +58,18 @@ pub struct Args {
 
     /// At the same time, unordered files size. dataset.bin files is split to chunks by this size
     #[arg(long)]
-    pub bin_chunks: Option<usize>,
+    pub bin_file_chunk_size: Option<usize>,
 
     /// It is max size of chunk, when import dataset items
     #[arg(long, default_value = "100")]
-    chunk_max_size: usize,
+    training_batch_size: usize,
+
+    /// default ids_max_len of files
+    #[arg(long)]
+    training_sequence_length: Option<usize>,
+
+    #[arg(long, default_value = "10")]
+    channel_buf_size: usize,
 }
 
 lazy_static! {
@@ -79,9 +80,15 @@ lazy_static! {
 pub fn args() -> &'static Args {
     COMMAND_ARGS.get_or_init(Args::parse)
 }
-
-// cargo run -p onnx-ort-train-sentiment -- --bin-chunks=1 --optimizer-lr=7e-5 --tokenizer-json="./tools/google-bert-chinese/model/tokenizer.json" --checkpoint-file="./tools/google-bert-chinese/onnx-training/checkpoint" --training-model-file="./tools/google-bert-chinese/onnx-training/training_model.onnx" --eval-model-file="./tools/google-bert-chinese/onnx-training/eval_model.onnx" --optimizer-model-file="./tools/google-bert-chinese/onnx-training/optimizer_model.onnx" --out-trained-onnx="./target/trained_model.onnx" --dataset-bin="./target/dataset.bin/dataset-0.bin"
+// export RUST_LOG=train=trace,onnx_ort_train_sentiment=trace
+// cargo run -p onnx-ort-train-sentiment -- --bin-file-chunk-size=1 --channel-buf-size=3 --training-batch-size=3 --optimizer-lr=7e-5 --tokenizer-json="./tools/google-bert-chinese/model/tokenizer.json" --checkpoint-file="./tools/google-bert-chinese/onnx-training/checkpoint" --training-model-file="./tools/google-bert-chinese/onnx-training/training_model.onnx" --eval-model-file="./tools/google-bert-chinese/onnx-training/eval_model.onnx" --optimizer-model-file="./tools/google-bert-chinese/onnx-training/optimizer_model.onnx" --out-trained-onnx="./target/trained_model.onnx" --dataset-bin="./target/dataset.bin/dataset-0-27-58.bin"
 fn main() -> anyhow::Result<()> {
+    yoyo()
+        .inspect(|_| info!("Good, Good, Good! training done!"))
+        .inspect_err(|e| error!("Boom, Boom, Boom! training error: {:?}", e))?;
+    Ok(())
+}
+fn yoyo() -> anyhow::Result<()> {
     setup_tracing(
         &args().log_level,
         args().log_file.as_ref(),
@@ -93,11 +100,13 @@ fn main() -> anyhow::Result<()> {
         std::env::current_dir()?.display()
     );
 
-    args().dataset_bin.iter().for_each(|v| {
+    args().dataset_bin.iter().fold(Ok(()), |e, v| {
+        let _ = e?;
         if !v.exists() {
-            panic!("dataset-bin not exists, it {}", v.display());
+            return anyhow::Result::Err(anyhow!("dataset-bin not exists, it is {}", v.display()));
         }
-    });
+        Ok(())
+    })?;
     let out_trained_onnx_parsent = args().out_trained_onnx.parent().ok_or(anyhow!(
         "--out-trained-onnx error: {}",
         args().out_trained_onnx.display()
@@ -106,6 +115,33 @@ fn main() -> anyhow::Result<()> {
         std::fs::create_dir_all(out_trained_onnx_parsent)?;
     }
 
+    let channel = mpsc::channel::<Vec<TextLabel>>(args().channel_buf_size);
+    block_on(training_do(channel))?;
+    Ok(())
+}
+
+async fn training_do(
+    (tx, mut rx): (mpsc::Sender<Vec<TextLabel>>, mpsc::Receiver<Vec<TextLabel>>),
+) -> anyhow::Result<()> {
+    // let ort_training = Arc::new(RwLock::new(ort_training));
+    let next_training = NextTraining::new(
+        args().dataset_bin.clone(),
+        args().bin_file_chunk_size,
+        args().training_batch_size,
+        tx,
+    )?;
+
+    let training_steps = if next_training.total_records() % args().training_batch_size == 0 {
+        next_training.total_records() / args().training_batch_size
+    } else {
+        next_training.total_records() / args().training_batch_size + 1
+    };
+    info!(
+        "ort_training created, will train {} records, training_steps = {training_steps}, ids_max_len = {}",
+        next_training.total_records(), next_training.ids_max_len()
+    );
+
+    // 没有实现Send
     let ort_training = ort_training::OrtTrainingBuilder::default()
         .with_checkpoint(&args().checkpoint_file)
         .with_training_model(&args().training_model_file)
@@ -114,20 +150,41 @@ fn main() -> anyhow::Result<()> {
         .with_tokenizer_json(&args().tokenizer_json)
         .with_out_trained_onnx(&args().out_trained_onnx)
         .with_optimizer_lr(args().optimizer_lr)
-        .build()?;
-    info!("ort_training created");
+        .with_training_steps(training_steps)
+        .with_training_batch_size(args().training_batch_size)
+        .with_training_sequence_length(
+            args()
+                .training_sequence_length
+                .unwrap_or(next_training.ids_max_len()),
+        )
+        .with_ids_max_len(next_training.ids_max_len())
+        .build()
+        .map_err(|e| anyhow!("create ort training fail, error = {e}"))?;
 
-    let ort_training = Arc::new(RwLock::new(ort_training));
-    let training = Training::new(
-        args().dataset_bin.clone(),
-        args().bin_chunks,
-        args().chunk_max_size,
-        ort_training,
-    )?;
+    let mut pb = kdam::tqdm!(total = training_steps);
+    tokio::spawn(next_training.next_training());
+
+    eprintln!();
+    let count = 0_usize;
+    while let Some(v) = rx.recv().await {
+        let loss = ort_training
+            .step(v.as_slice())
+            .inspect_err(|e| {
+                debug!("Step({count}) ort training step error, the record = {v:?}, error = {e}")
+            })
+            .inspect(|_| trace!("Step({count}) ort training step ok, the record = {v:?}"))?;
+        pb.set_postfix(format!("Step({count})-loss={loss:.3}"));
+        pb.update(1).unwrap();
+    }
+    eprintln!();
+    let _ = kdam::term::show_cursor();
+    info!("training done");
+
+    ort_training.export()?;
     info!(
-        "ort_training created, will train {}",
-        training.total_records()
+        "training done, export to {}",
+        ort_training.out_trained_onnx().display()
     );
 
-    block_on(training.spawn_training_task())
+    Ok(())
 }

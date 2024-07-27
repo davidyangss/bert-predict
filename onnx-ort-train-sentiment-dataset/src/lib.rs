@@ -27,7 +27,7 @@ pub mod prelude {
 }
 
 use prelude::*;
-use text_label::{DatasetWriter, TextLabel};
+use text_label::{DatasetWriter, TextLabel, TextLabelBytes};
 use tokenizers::Tokenizer;
 use tokio::{fs::File, io::AsyncWriteExt, sync::RwLock};
 
@@ -78,6 +78,9 @@ impl SinkDataset {
     pub fn size_of_written(&self) -> usize {
         self.writer.size_of_written()
     }
+    pub fn ids_max_len(&self) -> usize {
+        self.writer.ids_max_len()
+    }
     pub fn lines_plus_plus(&self) -> usize {
         self.total_lines
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
@@ -88,10 +91,10 @@ impl SinkDataset {
 
     pub fn dataset_sink(
         dataset: Arc<RwLock<SinkDataset>>,
-        chunk_max_size: usize,
+        training_batch_size: usize,
     ) -> impl Sink<Vec<Record>, Error = anyhow::Error> + Unpin {
         let sink = sink::unfold(dataset, move |s, records| async move {
-            Self::write_tokinizer_encode(&s.clone(), records, chunk_max_size).await?;
+            Self::write_tokinizer_encode(&s.clone(), records, training_batch_size).await?;
             Ok(s)
         });
         Box::pin(sink)
@@ -100,12 +103,12 @@ impl SinkDataset {
     async fn write_tokinizer_encode(
         dataset: &Arc<RwLock<Self>>, // 目测，不清楚tokinizer是否是线程安全的
         records: Vec<Record>,
-        chunk_max_size: usize,
+        training_batch_size: usize,
     ) -> anyhow::Result<()> {
         let s = stream::iter(records)
             .then(|r| Self::encode_to_bytes(dataset, r))
             .inspect_err(|e| error!("tokinizer encode error: {:?}", e))
-            .try_ready_chunks(chunk_max_size)
+            .try_ready_chunks(training_batch_size)
             .inspect(|r| trace!("tokinizer encode to bytes, chunk size: {:?}", r))
             .map_err(|e| anyhow::Error::from(e))
             .take_while(|r| futures::future::ready(r.is_ok())) // 有错误就停止
@@ -126,37 +129,42 @@ impl SinkDataset {
         async move {
             let dataset = dataset.read().await;
             dataset.lines_plus_plus();
-            let id_bytes = dataset.writer.item_style().tokenizer_ids_as_bytes(
-                &dataset
-                    .tokinizer
-                    .encode(r.comment(), false)
-                    .map_err(|e| {
-                        anyhow::anyhow!("tokinizer encode to bytes, error:{}", e.to_string())
-                    })?
-                    .get_ids(),
-            );
+            let ids = dataset
+                .tokinizer
+                .encode(format!("[CLS]{}[SEP]", r.comment()), true)
+                .map_err(|e| {
+                    anyhow::anyhow!("tokinizer encode to bytes, error:{}", e.to_string())
+                })?;
+            let ids = ids.get_ids();
+            let id_bytes = dataset.writer.item_style().tokenizer_ids_as_bytes(ids);
             trace!(
                 "tokinizer comment <{}> to {:X} / [{:?}]",
                 r.comment(),
                 id_bytes.len(),
                 hex::encode(&id_bytes)
             );
-            let label_bytes = dataset.writer.item_style().tokenizer_ids_as_bytes(
-                &dataset
-                    .tokinizer
-                    .encode(r.sentiment().to_string(), false)
-                    .map_err(|e| {
-                        anyhow::anyhow!("tokinizer encode to bytes, error:{}", e.to_string())
-                    })?
-                    .get_ids(),
-            );
+            // let label_bytes = dataset.writer.item_style().tokenizer_ids_as_bytes(
+            //     &dataset
+            //         .tokinizer
+            //         .encode(r.sentiment().to_string(), false)
+            //         .map_err(|e| {
+            //             anyhow::anyhow!("tokinizer encode to bytes, error:{}", e.to_string())
+            //         })?
+            //         .get_ids(),
+            // );
+            let label_bytes = r.sentiment().to_le_bytes();
+            let label_bytes = label_bytes.map(|i| i as u32);
+            let label_bytes = dataset
+                .writer
+                .item_style()
+                .tokenizer_ids_as_bytes(&label_bytes);
             trace!(
                 "tokinizer sentiment <{}> to {} / [{:?}]",
                 r.sentiment(),
                 label_bytes.len(),
                 hex::encode(&label_bytes)
             );
-            Ok(dataset.writer.style_bytes(id_bytes, label_bytes))
+            Ok(dataset.writer.style_bytes(id_bytes, label_bytes.to_vec()))
         }
     }
 
@@ -176,6 +184,11 @@ impl SinkDataset {
             if let Err(e) = writer.flush().await {
                 return Err(anyhow::Error::from(e));
             }
+            let ids_max_len = bufs
+                .iter()
+                .map(|tx_lb| tx_lb.tokenizer_ids_len(tx_lb.id_bytes()))
+                .max();
+            writer.update(ids_max_len);
             Ok(())
         }
     }
