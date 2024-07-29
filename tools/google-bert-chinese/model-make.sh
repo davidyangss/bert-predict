@@ -49,10 +49,15 @@ function onnx-training {
 function model-export {
     workon_pyenv_or_create $GOOGLE_BERT_EXPORT_PYVENV_NAME
 
-    pip install optimum[exporters]
+    pip install optimum[exporters] accelerate
 
     rm -rf $GOOGLE_BERT_MODEL_DIR && mkdir -p $GOOGLE_BERT_MODEL_DIR
-    optimum-cli export onnx --task text-classification --model google-bert/bert-base-chinese $GOOGLE_BERT_MODEL_DIR
+    optimum-cli export onnx \
+        --model google-bert/bert-base-chinese \
+        --opset 14 \
+        --batch_size 4 \
+        --sequence_length 256 \
+        $GOOGLE_BERT_MODEL_DIR
     info "Done. optimum-cli export onnx ok."
 
     deactivate
