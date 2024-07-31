@@ -9,4 +9,6 @@
 /tools/google-bert-chinese/pyvenv
 /tools/google-bert-chinese/onnx-training
 /tools/google-bert-chinese/model
+/tools/google-bert-chinese/base_model
+/tools/google-bert-chinese/onnx-artifacts
 

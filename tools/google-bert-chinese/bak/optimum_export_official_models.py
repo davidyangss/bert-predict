@@ -7,7 +7,6 @@ from optimum.exporters.onnx.base import ConfigBehavior
 from typing import Dict
 
 class CustomWhisperOnnxConfig(WhisperOnnxConfig):
-
     def outputs(self) -> Dict[str, Dict[int, str]]:
         common_outputs = super().outputs
 
@@ -53,7 +52,7 @@ decoder_with_past_config = custom_whisper_onnx_config.with_behavior("decoder", u
 custom_onnx_configs={
     "encoder_model": encoder_config,
     "decoder_model": decoder_config,
-    "decoder_with_past_model": decoder_with_past_config,
+    "decoder_model_with_past": decoder_with_past_config,
 }
 
 main_export(
