@@ -15,7 +15,10 @@ import os
 import sys
 import torch
 import numpy as np
-from transformers import AutoConfig, AutoModelForMaskedLM, AutoTokenizer
+import onnx
+from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer
+from torch import nn, Tensor
+from torch.nn import functional as F
 
 
 def build_base_model(tokenizer, model_path, config_path, device):
@@ -29,7 +32,7 @@ def build_base_model(tokenizer, model_path, config_path, device):
     # config_dict = config.to_dict()
     # for key, value in config_dict.items():
     #     print(f"{key}: {value}")
-    model = AutoModelForMaskedLM.from_pretrained(
+    model = AutoModelForSequenceClassification.from_pretrained(
         model_path,
         config=config,
         revision='main',
@@ -59,21 +62,32 @@ class RefineModel(torch.nn.Module):
         super(RefineModel, self).__init__()
         self._base_model = build_base_model(tokenizer, model_path, config_path, device)
 
-    def forward(self, input_ids, attention_mask, token_type_ids):
-        x = self._base_model(input_ids, attention_mask, token_type_ids)
-        return x[0].argmax(dim=-1)
-
+    # def forward(self, input_ids, attention_mask, token_type_ids):
+    #     x = self._base_model(input_ids, attention_mask, token_type_ids)
+    #     return x[0].argmax(dim=-1)
+    # def forward(self, input_ids, attention_mask, token_type_ids):
+    #     x = self._base_model(input_ids, attention_mask, token_type_ids)
+    #     return x.logits.float()
+    # def forward(self, input_ids, attention_mask, token_type_ids) -> Tensor:
+    #     x = self._base_model(input_ids, attention_mask, token_type_ids)
+    #     logits = x.logits
+    #     return logits.view(-1, logits.size(-1))
+    def forward(self, input_ids, attention_mask = None, token_type_ids = None):
+        outputs = self._base_model(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+        logits = outputs.logits.to(torch.float32)
+        return logits.view(-1, logits.size(-1))
 
 def generate_random_data(shape, dtype, low=0, high=2):
     if dtype in ["float32", "float16"]:
         return np.random.random(shape).astype(dtype)
     elif dtype in ["int32", "int64"]:
+        # return np.random.randint(low, high, shape).astype(dtype)
         return np.random.uniform(low, high, shape).astype(dtype)
     else:
         raise NotImplementedError("Not supported format: {}".format(dtype))
 
 
-def export_onnx(model_dir, save_path, seq_len=384, batch_size=1):
+def export_onnx(model_dir, save_path, seq_len=256, batch_size=16):
     # build tokenizer
     tokenizer = build_tokenizer(tokenizer_name=model_dir)
 
@@ -88,21 +102,28 @@ def export_onnx(model_dir, save_path, seq_len=384, batch_size=1):
         torch.Tensor(generate_random_data([batch_size, seq_len], "int64")).to(torch.int64),
         torch.Tensor(generate_random_data([batch_size, seq_len], "int64")).to(torch.int64)
     )
+
     input_names = ["input_ids", "attention_mask", "token_type_ids"]
-    output_names = ["out"]
+    output_names = ["probs"]
     dynamic_axes = {
-        "input_ids": {0: "B"},
-        "attention_mask": {0: "B"},
-        "token_type_ids": {0: "B"},
-        "out": {0: "B"}
+        'input_ids': {0: 'batch', 1: 'seq'},
+        'attention_mask': {0: 'batch', 1: 'seq'},
+        'token_type_ids': {0: 'batch', 1: 'seq'},
+        "probs": {0: "batch_seq"}
     }
+    # input_names = ["input_ids"]
+    # output_names = ["probs"]
+    # dynamic_axes = {
+    #     'input_ids': {0: 'batch', 1: 'seq'},
+    #     "probs": {0: "batch_seq"}
+    # }
 
     # export onnx model
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     torch.onnx.export(
-        model,
-        input_data,
-        save_path,
+        model=model,
+        args=input_data,
+        f=save_path,
         dynamic_axes=dynamic_axes,
         verbose=False,
         opset_version=14,
@@ -115,4 +136,8 @@ if __name__ == '__main__':
     model_dir = sys.argv[1]
     save_path = sys.argv[2]
     seq_len = int(sys.argv[3])
-    export_onnx(model_dir, save_path, seq_len)
+    batch_size = int(sys.argv[4])
+    export_onnx(model_dir, save_path, seq_len, batch_size)
+
+    onnx_model = onnx.load(save_path)
+    onnx.checker.check_model(onnx_model)

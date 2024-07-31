@@ -16,7 +16,7 @@ artifacts.generate_artifacts(
 	onnx_model,
 	requires_grad=requires_grad,
 	frozen_params=[],
-	loss=artifacts.LossType.CrossEntropyLoss,
+	loss=artifacts.LossType.BCEWithLogitsLoss,
 	optimizer=artifacts.OptimType.AdamW,
 	artifact_directory=sys.argv[2]
 )

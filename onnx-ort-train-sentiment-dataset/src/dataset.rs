@@ -66,7 +66,6 @@ pub fn args() -> &'static Args {
 //     })
 // }
 
-/// cargo run -r -p onnx-ort-train-sentiment-dataset -- --tokenizer-json="./tools/google-bert-chinese/model/tokenizer.json" --files-chunks=1 --out-dataset-bin="./target/dataset.bin" --csvs="./onnx-ort-train-sentiment-dataset/data/train.csv"
 // #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 fn main() -> anyhow::Result<()> {
     setup_tracing(

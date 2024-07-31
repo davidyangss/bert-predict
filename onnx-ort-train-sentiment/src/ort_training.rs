@@ -17,10 +17,14 @@ pub struct OrtTraining {
     _ids_max_len: usize,
 }
 
+type IdsType = i64;
+type LablesType = i64;
+type LossType = f32;
+
 impl OrtTraining {
-    pub fn step(&self, batch: &[TextLabel]) -> anyhow::Result<f32> {
-        let mut inputs = vec![0i64; batch.len() * self.training_sequence_length];
-        let mut labels = Vec::<i64>::with_capacity(batch.len());
+    pub fn step(&self, batch: &[TextLabel]) -> anyhow::Result<LossType> {
+        let mut inputs = vec![0 as IdsType; batch.len() * self.training_sequence_length];
+        let mut labels = Vec::<IdsType>::with_capacity(batch.len());
         trace!(
             "step batch: shape: [{}, {}], labels = {}",
             batch.len(),
@@ -33,37 +37,38 @@ impl OrtTraining {
             let target = target
                 [i * self.training_sequence_length..(i + 1) * self.training_sequence_length]
                 .as_mut();
-            text_label.bytes_into_encoding_ids::<i64>(text_label.id_bytes(), target);
-            let label = text_label.bytes_to_encoding_ids::<i64>(text_label.label_bytes());
+            text_label.bytes_into_encoding_ids::<IdsType>(text_label.id_bytes(), target);
+            let label = text_label.bytes_to_encoding_ids::<LablesType>(text_label.label_bytes());
             if label.len() != 1 {
                 return Err(anyhow::anyhow!("label.len() != 1, label bytes error"));
             }
             labels.extend(label);
         }
 
-        trace!(
-            "step inputs: {} / {:?}",
-            inputs.len(),
-            inputs
-                .iter()
-                .map(|i| format!("{}", hex::encode(&i.to_le_bytes())))
-                .collect::<Vec<String>>()
-        );
-        trace!("step labels: {:?}", labels);
+        // trace!(
+        //     "step inputs: {} / {:?}",
+        //     inputs.len(),
+        //     inputs
+        //         .iter()
+        //         .filter(|i| **i != 0)
+        //         .map(|i| format!("{}", hex::encode(&i.to_le_bytes())))
+        //         .collect::<Vec<String>>()
+        // );
+        trace!("step inputs: {}, step labels: {:?}", inputs.len(), labels);
 
         let trainer = &self.trainer;
-        let inputs = ndarray::Array2::<i64>::from_shape_vec(
+        let inputs = ndarray::Array2::<IdsType>::from_shape_vec(
             [batch.len(), self.training_sequence_length],
             inputs,
         )
         .map_err(|e| anyhow::anyhow!("Array2::<i64>::from_shape_vec(inputs), error: {e}"))?;
-        let labels = ndarray::Array1::<i64>::from_shape_vec([labels.len()], labels)
+        let labels = ndarray::Array1::<LablesType>::from_shape_vec([labels.len()], labels)
             .map_err(|e| anyhow::anyhow!("Array1::<i64>::from_shape_vec(labels), error: {e}"))?;
 
         trace!("step ndarray inputs: {:?}", inputs);
         trace!("step ndarray labels: {:?}", labels);
 
-        let inputs = ort::inputs![inputs.view()]
+        let inputs = ort::inputs![inputs.view(),inputs.view(),inputs.view()]
             .map_err(|e| anyhow::anyhow!("ort::inputs![inputs.view()], error: {e}"))?;
         let labels = ort::inputs![labels.view()]
             .map_err(|e| anyhow::anyhow!("ort::inputs![labels.view()], error: {e}"))?;
@@ -71,8 +76,8 @@ impl OrtTraining {
             .step(inputs, labels)
             .map_err(|e| anyhow::anyhow!("trainer.step(inputs, labels), error: {e}"))?;
         let loss = outputs[0]
-            .try_extract_scalar::<f32>()
-            .map_err(|e| anyhow::anyhow!("outputs[0].try_extract_scalar::<f32>(), error: {e}"))?;
+            .try_extract_scalar::<LossType>()
+            .map_err(|e| anyhow::anyhow!("outputs[0].try_extract_scalar::<LossType>(), error: {e}"))?;
         if loss.is_nan() {
             return Ok(loss);
         }

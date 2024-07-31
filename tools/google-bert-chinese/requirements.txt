@@ -1,4 +1,8 @@
 pip
+
+# optimum[exporters]
+# accelerate
+
 numpy~=1.25
 
 onnx~=1.16
@@ -11,6 +15,4 @@ onnxruntime-training-cpu==1.18.0
 
 transformers[torch]
 onnx-simplifier
-
-# install MagicONNX, at model-make.sh
 

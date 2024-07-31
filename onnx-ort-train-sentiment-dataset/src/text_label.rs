@@ -523,7 +523,7 @@ async fn test_text_label() {
     if let Some(Err(e)) = &fr {
         println!("error: {:?}", e);
     }
-    println!("remain length = {}", bytes_slice.remaining_slice().len());
+    // println!("remain length = {}", bytes_slice.remaining_slice().len());
     assert!(fr.is_some() && fr.unwrap().is_ok());
     assert_eq!(tl.id_bytes(), tl2.id_bytes());
     assert_eq!(tl.label_bytes(), tl2.label_bytes());
@@ -540,10 +540,11 @@ fn test_tokinizer() {
     let json_file = manifest_dir.join("tools/google-bert-chinese/example/model/tokenizer.json");
     println!("json file is {}", json_file.display());
     let tokinizer = Tokenizer::from_file(&json_file).unwrap();
-    let id_bytes: Vec<u8> = tokinizer
-        .encode(r.comment(), false)
-        .map_err(|e| anyhow::anyhow!("{:?}", e))
-        .unwrap()
+    // let encoding = tokinizer.encode(r.comment(), false).unwrap();
+    // let encoding = tokinizer.encode(r.comment(), true).unwrap(); // true, add [CLS] [SEP]等
+    let encoding = tokinizer.encode((r.comment(), "子句2"), true).unwrap();
+    println!("{:?}", encoding);
+    let id_bytes: Vec<u8> = encoding
         .get_ids()
         .iter()
         .flat_map(|c| (*c as u16).to_be_bytes())
@@ -626,11 +627,11 @@ async fn test_writer_reader() {
         println!("writer done, bytes = {}", wbuf.len());
 
         let c = Cursor::new(wbuf);
-        println!(
-            "read from cursor, remaining_slice: {}, {:?}",
-            c.remaining_slice().len(),
-            c.remaining_slice()
-        );
+        // println!(
+        //     "read from cursor, remaining_slice: {}, {:?}",
+        //     c.remaining_slice().len(),
+        //     c.remaining_slice()
+        // );
         let r = DatasetReader::new(c).await?;
         println!("version = {:?}", r.reading_item_style.version_bytes());
         assert_eq!(

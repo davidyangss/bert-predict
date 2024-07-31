@@ -1,5 +1,5 @@
-#![feature(coroutines, proc_macro_hygiene, stmt_expr_attributes)]
-#![feature(cursor_remaining)]
+// #![feature(coroutines, proc_macro_hygiene, stmt_expr_attributes)]
+// #![feature(cursor_remaining)]
 
 pub mod csv;
 pub mod text_label;
@@ -131,9 +131,9 @@ impl SinkDataset {
             dataset.lines_plus_plus();
             let ids = dataset
                 .tokinizer
-                .encode(format!("[CLS]{}[SEP]", r.comment()), true)
+                .encode(r.comment(), true)
                 .map_err(|e| {
-                    anyhow::anyhow!("tokinizer encode to bytes, error:{}", e.to_string())
+                    anyhow::anyhow!("tokinizer encode to bytes, error:{}", e)
                 })?;
             let ids = ids.get_ids();
             let id_bytes = dataset.writer.item_style().tokenizer_ids_as_bytes(ids);

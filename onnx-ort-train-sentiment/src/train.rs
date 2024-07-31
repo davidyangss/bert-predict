@@ -80,8 +80,7 @@ lazy_static! {
 pub fn args() -> &'static Args {
     COMMAND_ARGS.get_or_init(Args::parse)
 }
-// export RUST_LOG=train=trace,onnx_ort_train_sentiment=trace
-// cargo run -p onnx-ort-train-sentiment -- --bin-file-chunk-size=1 --channel-buf-size=3 --training-batch-size=3 --optimizer-lr=7e-5 --tokenizer-json="./tools/google-bert-chinese/model/tokenizer.json" --checkpoint-file="./tools/google-bert-chinese/onnx-training/checkpoint" --training-model-file="./tools/google-bert-chinese/onnx-training/training_model.onnx" --eval-model-file="./tools/google-bert-chinese/onnx-training/eval_model.onnx" --optimizer-model-file="./tools/google-bert-chinese/onnx-training/optimizer_model.onnx" --out-trained-onnx="./target/trained_model.onnx" --dataset-bin="./target/dataset.bin/dataset-0-27-58.bin"
+
 fn main() -> anyhow::Result<()> {
     yoyo()
         .inspect(|_| info!("Good, Good, Good! training done!"))
