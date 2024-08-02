@@ -1,0 +1,11 @@
+{
+    "rust-analyzer.debug.engineSettings": {},
+    "rust-analyzer.cargo.noDefaultFeatures": false,
+    "rust-analyzer.cargo.features": [
+        
+    ],
+
+    "code-runner.executorMap": {
+        "python": "python",
+    }
+}

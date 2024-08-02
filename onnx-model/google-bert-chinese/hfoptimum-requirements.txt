@@ -1,0 +1,14 @@
+pip
+
+transformers[torch]
+onnx-simplifier
+
+optimum==1.21.2
+optimum[onnxruntime]
+optimum[exporters]
+accelerate==0.33.0
+datasets >= 1.8.0
+sentencepiece != 0.1.92
+scipy
+scikit-learn
+protobuf

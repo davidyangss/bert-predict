@@ -1,10 +1,6 @@
 pip
 
-# optimum[exporters]
-# accelerate
-
 numpy~=1.25
-
 onnx~=1.16
 # onnx-weekly
 onnxruntime-training==1.18.0
@@ -12,7 +8,3 @@ onnxruntime-training==1.18.0
 torch~=2.3 
 torch-ort~=1.17
 onnxruntime-training-cpu==1.18.0
-
-transformers[torch]
-onnx-simplifier
-

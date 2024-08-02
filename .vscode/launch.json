@@ -1,0 +1,31 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "env": {"PYTHONPATH": "${workspaceFolder}"},
+            "justMyCode": false
+        },
+        {
+            "name": "Python: hfoptimum-glue.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "onnx-model/google-bert-chinese/hfoptimum-glue.py",
+            "console": "integratedTerminal",
+            "env": {"PYTHONPATH": "${workspaceFolder}"},
+            "args": ["--model_name_or_path", "distilbert-base-uncased-finetuned-sst-2-english",
+                "--task_name", "sst2",
+                "--optimization_level", "1",
+                "--do_eval",
+                "--output_dir", "/tmp/optimized_distilbert_sst2",
+                "--overwrite_output_dir"
+            ],
+            "justMyCode": false
+        }
+
+    ]
+}

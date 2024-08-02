@@ -7,11 +7,11 @@ set -e -o pipefail
 
 GOOGLE_BERT_CHINESE_DIR=$script_path
 GOOGLE_BERT_MODEL_DIR=$GOOGLE_BERT_CHINESE_DIR/base_model
-GOOGLE_BERT_MODEL_ONNX_FILE=$GOOGLE_BERT_MODEL_DIR/bert_base_chinese.onnx
+GOOGLE_BERT_MODEL_ONNX_FILE=$GOOGLE_BERT_MODEL_DIR/model.onnx
 GOOGLE_BERT_ONNX_DIR=$GOOGLE_BERT_CHINESE_DIR/onnx-artifacts
 
-GOOGLE_BERT_PYVENV_NAME=google-bert-chinese
-GOOGLE_BERT_EXPORT_PYVENV_NAME=google-bert-chinese-export
+GOOGLE_BERT_PYVENV_NAME=google-bert-chinese-onnx
+GOOGLE_BERT_EXPORT_PYVENV_NAME=hfoptimum
 
 SHAPE_BATCH_SIZE=4
 SHAPE_SEQ_LEN=256
@@ -38,13 +38,31 @@ function workon_pyenv_or_create {
     workon $pyenv_name
 }
 
-function py-export-venv {
+# function venv_hfoptimum {
+#     workon_pyenv_or_create $GOOGLE_BERT_EXPORT_PYVENV_NAME
+#     pip install optimum[exporters] accelerate
+#     python -m pip install optimum
+#     pip install --upgrade --upgrade-strategy eager optimum[onnxruntime]
+# }
+
+function venv_hfoptimum {
     workon_pyenv_or_create $GOOGLE_BERT_EXPORT_PYVENV_NAME
-    pip install optimum[exporters] accelerate
+
+    requirements_txt=$GOOGLE_BERT_CHINESE_DIR/hfoptimum-requirements.txt
+
+    md5_venv=$(cat ${VIRTUAL_ENV}/requirements.txt.md5 || echo "")
+    md5_req=$(md5sum $requirements_txt|awk '{print $1}')
+    if [[ "x$md5_venv" == "x$md5_req"  ]]; then
+        return
+    fi
+
+    pip install --require-virtualenv -r $requirements_txt
+    info "OK. installed requirements.txt for $GOOGLE_BERT_EXPORT_PYVENV_NAME."
+    echo $md5_req > ${VIRTUAL_ENV}/requirements.txt.md5
 }
 
 function official-model-export {
-    py-export-venv
+    venv_hfoptimum
 
     rm -rf $GOOGLE_BERT_MODEL_DIR && mkdir -p $GOOGLE_BERT_MODEL_DIR
     optimum-cli export onnx \
@@ -58,20 +76,6 @@ function official-model-export {
     export opt_onnx_model=$GOOGLE_BERT_MODEL_ONNX_FILE
 
     deactivate
-}
-
-function huggingface-onnx-optimum {
-    py-export-venv
-
-    rm -rf $GOOGLE_BERT_MODEL_DIR && mkdir -p $GOOGLE_BERT_MODEL_DIR
-    python $GOOGLE_BERT_CHINESE_DIR/onnx-optimum.py $GOOGLE_BERT_MODEL_DIR
-    info "Done. optimum-cli export onnx ok."
-
-    mv $GOOGLE_BERT_MODEL_DIR/*.onnx $GOOGLE_BERT_MODEL_ONNX_FILE || return
-    export opt_onnx_model=$GOOGLE_BERT_MODEL_ONNX_FILE
-
-    deactivate
-
 }
 
 function git_model-bert-base-chinese {
@@ -88,16 +92,18 @@ function git_model-bert-base-chinese {
     info "Ok."
 }
 
-function workon_venv {
+function venv_onnx {
     workon_pyenv_or_create $GOOGLE_BERT_PYVENV_NAME
 
+    requirements_txt=$GOOGLE_BERT_CHINESE_DIR/onnx-requirements.txt
+
     md5_venv=$(cat ${VIRTUAL_ENV}/requirements.txt.md5 || echo "")
-    md5_req=$(md5sum $GOOGLE_BERT_CHINESE_DIR/requirements.txt|awk '{print $1}')
+    md5_req=$(md5sum $requirements_txt|awk '{print $1}')
     if [[ "x$md5_venv" == "x$md5_req"  ]]; then
         return
     fi
 
-    pip install --require-virtualenv -r $GOOGLE_BERT_CHINESE_DIR/requirements.txt
+    pip install --require-virtualenv -r $requirements_txt
     info "OK. installed requirements.txt for $GOOGLE_BERT_PYVENV_NAME."
     # echo $md5_req > ${VIRTUAL_ENV}/requirements.txt.md5
 
@@ -109,8 +115,8 @@ function workon_venv {
 }
 # 输入参数：${model_dir} ${output_path} ${seq_length} ${batch_size} 
 # python3 pth2onnx.py ./bert-base-chinese ./bert_base_chinese.onnx 384
-function onnx-export {
-    workon_venv
+function onnx-export-base_model {
+    venv_onnx
 
     model_dir=$GOOGLE_BERT_MODEL_DIR
     output_path=$GOOGLE_BERT_MODEL_ONNX_FILE
@@ -127,8 +133,8 @@ function onnx-export {
 }
 
 # 修改优化模型：${bs}:[1, 4, 8, 16, 32, 64],${seq_len}:384
-function onnx-optimum {
-    workon_venv
+function onnx-onnxsim {
+    venv_hfoptimum
 
     bs=${SHAPE_BATCH_SIZE}
     seq_len=${SHAPE_SEQ_LEN}
@@ -145,14 +151,49 @@ function onnx-optimum {
     info "Done. onnx-optimum ok."
 }
 
-function onnx-artifacts {
-    workon_venv
 
-    info "Use mode: ${1:-$opt_onnx_model}"
-    
+function hfoptimum-export-model-onnx {
+    venv_hfoptimum
+
+    rm -rf $GOOGLE_BERT_MODEL_DIR && mkdir -p $GOOGLE_BERT_MODEL_DIR
+    ONNX_OUTPUT=$GOOGLE_BERT_MODEL_DIR \
+        ONNX_OPSET=$OPSET_VERSION \
+        ONNX_BATCH_SIZE=$SHAPE_BATCH_SIZE \
+        ONNX_SEQUENCE_LENGTH=$SHAPE_SEQ_LEN \
+        python3 $GOOGLE_BERT_CHINESE_DIR/hfoptimum-model.py
+    info "Done. hfoptimum-export-model-onnx ok."
+}
+
+function hfoptimum-check {
+    venv_hfoptimum
+
+    MODEL_PATH=$GOOGLE_BERT_MODEL_DIR \
+        python3 $GOOGLE_BERT_CHINESE_DIR/hfoptimum-check.py
+    info "Done. hfoptimum-check ok."
+}
+
+function hfoptimum-glue {
+    venv_hfoptimum
+
+    rm -rf $GOOGLE_BERT_MODEL_DIR && mkdir -p $GOOGLE_BERT_MODEL_DIR
+    python3 $GOOGLE_BERT_CHINESE_DIR/hfoptimum-glue.py \
+        --model_name_or_path google-bert/bert-base-chinese \
+        --task_name sst2 \
+        --optimization_level 1 \
+        --overwrite_output_dir \
+        --output_dir $GOOGLE_BERT_MODEL_DIR
+    info "Done. hfoptimum-glue ok."
+}
+
+
+function onnx-artifacts {
+    venv_onnx
+
     rm -rf $GOOGLE_BERT_ONNX_DIR && mkdir -p $GOOGLE_BERT_ONNX_DIR
-    python3 $GOOGLE_BERT_CHINESE_DIR/onnx-artifacts.py ${1:-$opt_onnx_model} $GOOGLE_BERT_ONNX_DIR
-    info "Done. onnx-artifacts ok."
+    ONNX_MODEL=$GOOGLE_BERT_MODEL_DIR/model.onnx \
+        ONNX_OUTPUT=$GOOGLE_BERT_ONNX_DIR \
+        python3 $GOOGLE_BERT_CHINESE_DIR/onnx-artifacts.py
+    info "Done. onnx-artifacts ok. $GOOGLE_BERT_MODEL_DIR/model.onnx ==> $GOOGLE_BERT_ONNX_DIR"
 }
 
 # if [ $# -lt 1 ]; then
@@ -162,11 +203,12 @@ function onnx-artifacts {
 # fi
 
 if [ $# -lt 1 ]; then
-    # official-model-export
-    workon_venv
-    git_model-bert-base-chinese
-    onnx-export
-    # onnx-optimum
+    venv_hfoptimum
+    hfoptimum-export-model-onnx
+    hfoptimum-check
+    deactivate
+
+    venv_onnx
     onnx-artifacts
     deactivate
 fi

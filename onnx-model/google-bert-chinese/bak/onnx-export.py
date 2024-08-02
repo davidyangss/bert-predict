@@ -16,7 +16,7 @@ import sys
 import torch
 import numpy as np
 import onnx
-from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoConfig, AutoModelForMaskedLM, AutoModelForSequenceClassification, AutoTokenizer
 from torch import nn, Tensor
 from torch.nn import functional as F
 
@@ -32,7 +32,7 @@ def build_base_model(tokenizer, model_path, config_path, device):
     # config_dict = config.to_dict()
     # for key, value in config_dict.items():
     #     print(f"{key}: {value}")
-    model = AutoModelForSequenceClassification.from_pretrained(
+    model = AutoModelForMaskedLM.from_pretrained(
         model_path,
         config=config,
         revision='main',

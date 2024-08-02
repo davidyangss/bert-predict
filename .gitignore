@@ -1,14 +1,13 @@
 .idea
-.vscode
 
 /target
 /log
 
 /onnx-ort-train-sentiment-dataset/data/csvs
 
-/tools/google-bert-chinese/pyvenv
-/tools/google-bert-chinese/onnx-training
-/tools/google-bert-chinese/model
-/tools/google-bert-chinese/base_model
-/tools/google-bert-chinese/onnx-artifacts
+/onnx-model/google-bert-chinese/pyvenv
+/onnx-model/google-bert-chinese/onnx-training
+/onnx-model/google-bert-chinese/model
+/onnx-model/google-bert-chinese/base_model
+/onnx-model/google-bert-chinese/onnx-artifacts
 

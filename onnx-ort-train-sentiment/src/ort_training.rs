@@ -94,7 +94,7 @@ impl OrtTraining {
 
     pub fn export(&self) -> anyhow::Result<()> {
         self.trainer
-            .export(&self.out_trained_onnx, ["probs"])
+            .export(&self.out_trained_onnx, ["logits"])
             .map_err(|e| anyhow::anyhow!("trainer.export, error: {e}"))?;
         Ok(())
     }
