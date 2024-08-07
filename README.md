@@ -23,11 +23,11 @@ The purpose of this project is to explore the application of Rust in NLP. On one
         --output_dir /tmp/optimized_distilbert_sst2
 
     python onnx-model/google-bert-chinese/hfoptimum-glue.py \
-            --model_name_or_path google-bert/bert-base-chinese \
-            --task_name sst2 \
-            --optimization_level 1 \
-            --overwrite_output_dir \
-            --output_dir onnx-model/google-bert-chinese/base_model
+        --model_name_or_path google-bert/bert-base-chinese \
+        --task_name sst2 \
+        --optimization_level 1 \
+        --overwrite_output_dir \
+        --output_dir onnx-model/google-bert-chinese/base_model
     ```
 1. hfoptimum-model.py、hfoptimum-check.py、hfoptimum-glue.py require hfoptimum-requirements.txt
 1. onnx-artifacts.py generate artifacts, output = onnx-artifacts. it require onnx-requirements.txt
@@ -35,7 +35,8 @@ The purpose of this project is to explore the application of Rust in NLP. On one
     ```bash
     ./onnx-model/google-bert-chinese/make.sh
     ```
-## Rust, using ort
+## ~~Rust, using ort.~~
+**Give up because the call failed and the example failed to run. Try [burn](https://github.com/tracel-ai/burn) instead of ort**
 ### Depends on [ort=2.0.0-rc.4](https://crates.io/crates/ort/2.0.0-rc.4), [Guide](https://ort.pyke.io/)
 1. Runtime depends on linux. I use OrbStack at macOS.
 1. The path to the binary can be controlled with the environment variable `ORT_DYLIB_PATH=<project_path>/onnxruntime-libs/libonnxruntime.so.1.18.0`, [Source](https://github.com/microsoft/onnxruntime/releases/download/v1.18.0/onnxruntime-linux-x64-1.18.0.tgz) [Releases](https://github.com/microsoft/onnxruntime/releases/tag/v1.18.0)
