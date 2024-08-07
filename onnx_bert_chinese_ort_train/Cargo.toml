@@ -1,13 +1,11 @@
 [package]
 publish = false
-name = "onnx-ort-train-sentiment-dataset"
+name = "onnx_bert_chinese_ort_train"
 version = "0.0.0"
 edition = "2021"
 
 [features]
-default = [ "tokio-async-stream" ]
-tokio-async-stream = [ "dep:async-stream" ]
-futures-async-stream = [ "dep:futures-async-stream" ]
+cuda = ["ort/cuda"]
 
 [dependencies]
 async-stream = { version = "0.3.5", optional = true }
@@ -18,7 +16,6 @@ ndarray.workspace = true
 half.workspace = true
 tokenizers.workspace = true
 kdam.workspace = true
-csv-async.workspace = true
 serde.workspace = true
 
 tracing.workspace = true
@@ -38,15 +35,23 @@ clap.workspace = true
 lazy_static.workspace = true
 num_cpus.workspace = true
 hex.workspace = true
+regex.workspace = true
 
 yss-commons.workspace = true
+onnx_bert_chinese_ort_train_dataset.workspace = true
 
 [dev-dependencies]
+rand = "0.8"
 simd-json = "0.13"
 
-# [lib]
-# name = "sentiment_dataset"
 
 [[bin]]
-name = "dataset"
-path = "src/dataset.rs"
+name = "train"
+path = "src/train.rs"
+
+[lib]
+path = "src/lib.rs"
+
+# build.rs中配置
+# [target.x86_64-unknown-linux-gnu]
+# rustflags = [ "-Clink-args=-Wl,-rpath,\\$ORIGIN", "-Clink-args=-Wl,-rpath,\\$ORIGIN/../lib" ]

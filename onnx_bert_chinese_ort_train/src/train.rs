@@ -2,11 +2,11 @@ use std::{path::PathBuf, sync::OnceLock};
 
 use anyhow::{anyhow, Ok};
 use kdam::BarExt;
-use onnx_ort_train_sentiment::{
+use onnx_bert_chinese_ort_train::{
     ort_training::{self},
     NextTraining,
 };
-use onnx_ort_train_sentiment_dataset::text_label::TextLabel;
+use onnx_bert_chinese_ort_train_dataset::text_label::TextLabel;
 
 use clap::{Parser, ValueHint};
 use lazy_static::lazy_static;

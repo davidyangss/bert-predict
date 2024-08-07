@@ -1379,7 +1379,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "onnx-ort-train-sentiment"
+name = "onnx_bert_chinese_ort_train"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -1394,7 +1394,7 @@ dependencies = [
  "lazy_static",
  "ndarray",
  "num_cpus",
- "onnx-ort-train-sentiment-dataset",
+ "onnx_bert_chinese_ort_train_dataset",
  "ort",
  "pin-project-lite",
  "rand",
@@ -1414,7 +1414,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "onnx-ort-train-sentiment-dataset"
+name = "onnx_bert_chinese_ort_train_dataset"
 version = "0.0.0"
 dependencies = [
  "anyhow",

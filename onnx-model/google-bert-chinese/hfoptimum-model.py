@@ -49,7 +49,9 @@ model_id = "google-bert/bert-base-chinese"
 class CustomBertOnnxConfig(BertOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    ATOL_FOR_VALIDATION = 1e-4
+    ATOL_FOR_VALIDATION = 1e-7
+    DEFAULT_ONNX_OPSET = 14
+
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         if self.task == "multiple-choice":

@@ -207,7 +207,8 @@ if [ $# -lt 1 ]; then
     hfoptimum-export-model-onnx
     hfoptimum-check
     deactivate
-
+    info "Done. exported"
+    
     venv_onnx
     onnx-artifacts
     deactivate

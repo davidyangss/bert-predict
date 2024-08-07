@@ -11,7 +11,7 @@ use tracing::Level;
 use clap::{Parser, ValueHint};
 use lazy_static::lazy_static;
 
-use onnx_ort_train_sentiment_dataset::{csv::chunks_train_records, prelude::*, SinkDataset};
+use onnx_bert_chinese_ort_train_dataset::{csv::chunks_train_records, prelude::*, SinkDataset};
 use yss_commons::commons_tokio::{block_on, setup_tracing};
 
 #[derive(Parser, Debug)]

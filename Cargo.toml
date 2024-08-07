@@ -1,13 +1,13 @@
 [workspace]
 members = [
     '.',
-	'onnx-ort-train-sentiment',
-	'onnx-ort-train-sentiment-dataset'
+	'onnx_bert_chinese_ort_train',
+	'onnx_bert_chinese_ort_train_dataset'
 ]
 default-members = [
 	'.',
-	'onnx-ort-train-sentiment',
-	'onnx-ort-train-sentiment-dataset'
+	'onnx_bert_chinese_ort_train',
+	'onnx_bert_chinese_ort_train_dataset'
 ]
 
 [workspace.dependencies]
@@ -58,7 +58,7 @@ hex = "0.4"
 regex = "1.10"
 
 yss-commons = { path = "." }
-onnx-ort-train-sentiment-dataset = { path = "onnx-ort-train-sentiment-dataset" }
+onnx_bert_chinese_ort_train_dataset = { path = "onnx_bert_chinese_ort_train_dataset" }
 
 
 [package]

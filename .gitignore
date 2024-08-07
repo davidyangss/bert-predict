@@ -3,7 +3,7 @@
 /target
 /log
 
-/onnx-ort-train-sentiment-dataset/data/csvs
+data/csvs
 
 /onnx-model/google-bert-chinese/pyvenv
 /onnx-model/google-bert-chinese/onnx-training

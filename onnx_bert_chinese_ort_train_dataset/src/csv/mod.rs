@@ -35,6 +35,8 @@ impl IntoStream for TrainCSV {
             let import_b = Instant::now();
             let rdr = csv_async::AsyncReaderBuilder::new()
                 .delimiter(csv_delimiter as u8)
+                .trim(csv_async::Trim::None)
+                .quoting(false)
                 .create_deserializer(TrainCSV::open(path).await?);
             event!(Level::INFO, "Opened {}", path.display());
             let mut records = rdr.into_deserialize::<Record>();
@@ -94,6 +96,13 @@ pub fn chunks_train_records<'a>(
     csv_delimiter: char,
     training_batch_size: usize,
 ) -> impl Stream<Item = anyhow::Result<Vec<Record>>> + Unpin + 'a {
-    let s = train_records(files, csv_delimiter).try_ready_chunks(training_batch_size);
+    let s = train_records(files, csv_delimiter)
+        // .inspect_err(|err| {
+        //     tracing::error!("chunks train records, error: {err}")
+        // })
+        // .inspect_ok(|r| {
+        //     tracing::info!("REC {}	{}", r.label(), r.text())
+        // })
+        .try_ready_chunks(training_batch_size);
     return s.map_err(|e| e.into());
 }

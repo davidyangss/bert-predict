@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use onnx_ort_train_sentiment_dataset::text_label::{TextLabel, TextLabelBytes as _};
+use onnx_bert_chinese_ort_train_dataset::text_label::{TextLabel, TextLabelBytes as _};
 use ort::{Allocator, CUDAExecutionProvider, Checkpoint, SessionBuilder, Trainer};
 use tokenizers::Tokenizer;
 use tracing::{info, trace};

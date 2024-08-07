@@ -5,25 +5,25 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize, Eq, PartialEq, Clone)]
 pub struct Record {
     id: Option<u64>,
-    comment: String,
-    sentiment: u8,
+    text: String,
+    label: u8,
 }
 
 impl Record {
-    pub fn new(id: Option<u64>, comment: String, sentiment: u8) -> Self {
+    pub fn new(id: Option<u64>, text: String, label: u8) -> Self {
         Self {
             id,
-            comment,
-            sentiment,
+            text,
+            label,
         }
     }
 
-    pub fn comment(&self) -> &str {
-        &self.comment
+    pub fn text(&self) -> &str {
+        &self.text
     }
 
-    pub fn sentiment(&self) -> u8 {
-        self.sentiment
+    pub fn label(&self) -> u8 {
+        self.label
     }
 
     pub fn id(&self) -> Option<u64> {
@@ -37,8 +37,8 @@ impl Display for Record {
             f,
             "{},{},{}",
             self.id.unwrap_or(0_u64),
-            self.comment,
-            self.sentiment
+            self.text,
+            self.label
         )
     }
 }

@@ -131,36 +131,36 @@ impl SinkDataset {
             dataset.lines_plus_plus();
             let ids = dataset
                 .tokinizer
-                .encode(r.comment(), true)
+                .encode(r.text(), true)
                 .map_err(|e| {
                     anyhow::anyhow!("tokinizer encode to bytes, error:{}", e)
                 })?;
             let ids = ids.get_ids();
             let id_bytes = dataset.writer.item_style().tokenizer_ids_as_bytes(ids);
             trace!(
-                "tokinizer comment <{}> to {:X} / [{:?}]",
-                r.comment(),
+                "tokinizer text <{}> to {:X} / [{:?}]",
+                r.text(),
                 id_bytes.len(),
                 hex::encode(&id_bytes)
             );
             // let label_bytes = dataset.writer.item_style().tokenizer_ids_as_bytes(
             //     &dataset
             //         .tokinizer
-            //         .encode(r.sentiment().to_string(), false)
+            //         .encode(r.label().to_string(), false)
             //         .map_err(|e| {
             //             anyhow::anyhow!("tokinizer encode to bytes, error:{}", e.to_string())
             //         })?
             //         .get_ids(),
             // );
-            let label_bytes = r.sentiment().to_le_bytes();
+            let label_bytes = r.label().to_le_bytes();
             let label_bytes = label_bytes.map(|i| i as u32);
             let label_bytes = dataset
                 .writer
                 .item_style()
                 .tokenizer_ids_as_bytes(&label_bytes);
             trace!(
-                "tokinizer sentiment <{}> to {} / [{:?}]",
-                r.sentiment(),
+                "tokinizer label <{}> to {} / [{:?}]",
+                r.label(),
                 label_bytes.len(),
                 hex::encode(&label_bytes)
             );

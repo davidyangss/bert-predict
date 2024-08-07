@@ -7,7 +7,7 @@ use std::{
 use anyhow::Ok;
 use futures::{stream, FutureExt, StreamExt, TryStreamExt};
 use lazy_static::lazy_static;
-use onnx_ort_train_sentiment_dataset::text_label::{DatasetReader, TextLabel};
+use onnx_bert_chinese_ort_train_dataset::text_label::{DatasetReader, TextLabel};
 use regex::Regex;
 use tokio::{
     fs::{File, OpenOptions},

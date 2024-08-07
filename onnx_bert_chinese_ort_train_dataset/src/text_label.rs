@@ -537,12 +537,12 @@ fn test_tokinizer() {
     let r = Record::new(Some(0_u64), "北国风光，千里冰封，万里雪飘。望长城内外，惟余莽莽；大河上下，顿失滔滔。山舞银蛇，象，欲与天公试比高。须晴日，看红装素裹，分外".to_string(), 1);
 
     let manifest_dir = yss_commons::commons_path::cargo_manifest_dir();
-    let json_file = manifest_dir.join("tools/google-bert-chinese/example/model/tokenizer.json");
+    let json_file = manifest_dir.join("onnx-model/google-bert-chinese/base_model/tokenizer.json");
     println!("json file is {}", json_file.display());
     let tokinizer = Tokenizer::from_file(&json_file).unwrap();
-    // let encoding = tokinizer.encode(r.comment(), false).unwrap();
-    // let encoding = tokinizer.encode(r.comment(), true).unwrap(); // true, add [CLS] [SEP]等
-    let encoding = tokinizer.encode((r.comment(), "子句2"), true).unwrap();
+    // let encoding = tokinizer.encode(r.text(), false).unwrap();
+    // let encoding = tokinizer.encode(r.text(), true).unwrap(); // true, add [CLS] [SEP]等
+    let encoding = tokinizer.encode((r.text(), "子句2"), true).unwrap();
     println!("{:?}", encoding);
     let id_bytes: Vec<u8> = encoding
         .get_ids()
@@ -551,7 +551,7 @@ fn test_tokinizer() {
         .collect();
     let id_bytes_hex_string = hex::encode(&id_bytes);
     let label_bytes: Vec<u8> = tokinizer
-        .encode(r.sentiment().to_string(), false)
+        .encode(r.label().to_string(), false)
         .map_err(|e| anyhow::anyhow!("{:?}", e))
         .unwrap()
         .get_ids()
@@ -600,8 +600,8 @@ async fn test_writer_reader() {
                 let rwri = writer.clone();
                 let rwri = rwri.read().unwrap();
                 anyhow::Result::<_, anyhow::Error>::Ok(rwri.style_bytes(
-                    r.comment().as_bytes().to_vec(),
-                    r.sentiment().to_string().as_bytes().to_vec(),
+                    r.text().as_bytes().to_vec(),
+                    r.label().to_string().as_bytes().to_vec(),
                 ))
             })
             .filter_map(|r| async {
