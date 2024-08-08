@@ -39,7 +39,7 @@ The purpose of this project is to explore the application of Rust in NLP. On one
 **Give up because the call failed and the example failed to run. Try [burn](https://github.com/tracel-ai/burn) instead of ort**
 ### Depends on [ort=2.0.0-rc.4](https://crates.io/crates/ort/2.0.0-rc.4), [Guide](https://ort.pyke.io/)
 1. Runtime depends on linux. I use OrbStack at macOS.
-1. The path to the binary can be controlled with the environment variable `ORT_DYLIB_PATH=<project_path>/onnxruntime-libs/libonnxruntime.so.1.18.0`, [Source](https://github.com/microsoft/onnxruntime/releases/download/v1.18.0/onnxruntime-linux-x64-1.18.0.tgz) [Releases](https://github.com/microsoft/onnxruntime/releases/tag/v1.18.0)
+1. The path to the binary can be controlled with the environment variable `ORT_DYLIB_PATH=<project_path>/onnxruntime-libs/libonnxruntime.so.1.18.0`, [Source](https://github.com/microsoft/onnxruntime/releases/download/v1.18.0/onnxruntime-training-linux-x64-1.18.0.tgz) [Releases](https://github.com/microsoft/onnxruntime/releases/tag/v1.18.0)
 1. Runtime, LD_LIBRARY_PATH=<project_path>/onnxruntime-libs/
 ### onnx_bert_chinese_ort_train_dataset, from csv files to datasets
 1. From `git@github.com:pykeio/ort.git, branch = 2.0.0-rc.4, file = examples/training/examples/pretokenize.rs`
@@ -72,10 +72,10 @@ The purpose of this project is to explore the application of Rust in NLP. On one
         --dataset-bin="./target/dataset.bin/dataset-0-9600-1960.bin"
     ```
 
-## The issue I am currently facing
+### The issue I am currently facing
 1. ```
     # Run:
-    cargo run -p onnx_bert_chinese_ort_train --example train
+    cargo run -p onnx_bert_chinese_ort_train --example training
 
     Error: trainer.step(inputs, labels), error: Failed to run inference on model: /onnxruntime_src/orttraining/orttraining/training_api/module.cc:632 onnxruntime::common::Status onnxruntime::training::api::Module::TrainStep(const std::vector<OrtValue>&, std::vector<OrtValue>&) [ONNXRuntimeError] : 2 : INVALID_ARGUMENT : Unexpected input data type. Actual: (tensor(int64)) , expected: (tensor(float))
     ```

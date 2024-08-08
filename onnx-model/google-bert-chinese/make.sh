@@ -193,7 +193,7 @@ function onnx-artifacts {
     ONNX_MODEL=$GOOGLE_BERT_MODEL_DIR/model.onnx \
         ONNX_OUTPUT=$GOOGLE_BERT_ONNX_DIR \
         python3 $GOOGLE_BERT_CHINESE_DIR/onnx-artifacts.py
-    info "Done. onnx-artifacts ok. $GOOGLE_BERT_MODEL_DIR/model.onnx ==> $GOOGLE_BERT_ONNX_DIR"
+    info "Done($?). onnx-artifacts ok. $GOOGLE_BERT_MODEL_DIR/model.onnx ==> $GOOGLE_BERT_ONNX_DIR"
 }
 
 # if [ $# -lt 1 ]; then
@@ -203,15 +203,22 @@ function onnx-artifacts {
 # fi
 
 if [ $# -lt 1 ]; then
-    venv_hfoptimum
-    hfoptimum-export-model-onnx
-    hfoptimum-check
-    deactivate
-    info "Done. exported"
+    (
+        venv_hfoptimum
+        hfoptimum-export-model-onnx
+        hfoptimum-check
+        info "Done. exported"
+        deactivate
+    )
     
-    venv_onnx
-    onnx-artifacts
-    deactivate
+    (
+        venv_onnx
+        info "onnx-artifacts..."
+        onnx-artifacts
+        info "Done($?). onnx-artifacts"
+        deactivate
+    )
+    exit 0
 fi
 
 SUBCMD=$1

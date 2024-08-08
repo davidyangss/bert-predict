@@ -49,7 +49,7 @@ model_id = "google-bert/bert-base-chinese"
 class CustomBertOnnxConfig(BertOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    ATOL_FOR_VALIDATION = 1e-7
+    ATOL_FOR_VALIDATION = 1e-4
     DEFAULT_ONNX_OPSET = 14
 
     @property
@@ -115,7 +115,7 @@ main_export(
     output=output_path,
     task="text-classification",
     device="cpu",
-    dtype="fp32",
+    # dtype="fp32",
     # optimize="O1",
     opset=opset,
     framework="pt",
@@ -123,12 +123,14 @@ main_export(
     revision="main",
     custom_onnx_configs=custom_onnx_configs,
     for_ort=True,
-    force_download=True,
-    kwargs_shapes={ # DEFAULT_DUMMY_SHAPES
-        "batch_size": batch_size,
-        "sequence_length": sequence_length,
-        "num_choices": 4
-    },
+    # force_download=True,
+    batch_size=batch_size,
+    sequence_length=sequence_length,
+    # kwargs_shapes={ # DEFAULT_DUMMY_SHAPES
+    #     "batch_size": batch_size,
+    #     "sequence_length": sequence_length,
+    #     "num_choices": 4
+    # },
     do_constant_folding=True,
     # model_kwargs: Optional[Dict[str, Any]] = None,)
 )

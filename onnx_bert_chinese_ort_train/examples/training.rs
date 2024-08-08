@@ -53,7 +53,8 @@ fn main() -> anyhow::Result<()> {
         for _ in 0..4 {
             let r = Record::new(Some(0_u64), "北国风光，千里冰封，万里雪飘。望长城内外，惟余莽莽；大河上下，顿失滔滔。山舞银蛇，象，欲与天公试比高。须晴日，看红装素裹，分外".to_string(), 1);
             let encoding = tokinizer.encode(r.text(), true).unwrap();
-            // info!("{:?}", encoding);
+            // info!("type_ids: {:?}", encoding.get_type_ids());
+            // info!("mask: {:?}", encoding.get_attention_mask());
             let ids = encoding.get_ids();
             let id_bytes = TextLabel::v1_style().tokenizer_ids_as_bytes(ids);
             let label_bytes = r.label().to_le_bytes();

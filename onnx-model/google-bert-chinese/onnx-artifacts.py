@@ -44,4 +44,6 @@ artifacts.generate_artifacts(
 	artifact_directory=output
 )
 
+print("Done. generate artifacts")
+
 
