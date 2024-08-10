@@ -116,7 +116,7 @@ function venv_onnx {
 # 输入参数：${model_dir} ${output_path} ${seq_length} ${batch_size} 
 # python3 pth2onnx.py ./bert-base-chinese ./bert_base_chinese.onnx 384
 function onnx-export-base_model {
-    venv_onnx
+    venv_hfoptimum
 
     model_dir=$GOOGLE_BERT_MODEL_DIR
     output_path=$GOOGLE_BERT_MODEL_ONNX_FILE
@@ -124,7 +124,7 @@ function onnx-export-base_model {
     batch_size=${SHAPE_BATCH_SIZE}
     seq_length=${SHAPE_SEQ_LEN}
 
-    python $GOOGLE_BERT_CHINESE_DIR/onnx-export.py $model_dir $output_path $seq_length $batch_size
+    python $GOOGLE_BERT_CHINESE_DIR/model.onnx-export.py $model_dir $output_path $seq_length $batch_size
     info "Done. onnx-export ok."
 
     export opt_onnx_model=$output_path

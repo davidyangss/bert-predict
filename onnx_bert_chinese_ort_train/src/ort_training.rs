@@ -30,7 +30,7 @@ impl OrtTraining {
     pub fn step(&self, batch: &[TextLabel]) -> anyhow::Result<LossType> {
         let mut inputs =
             vec![0 as IdsType; self.training_batch_size * self.training_sequence_length];
-        let mut labels = Vec::<IdsType>::with_capacity(self.training_batch_size);
+        let mut labels = vec![0 as LablesType; self.training_batch_size];
         trace!(
             "step batch: shape: [{}, {}], labels = {}",
             batch.len(),
@@ -48,7 +48,7 @@ impl OrtTraining {
             if label.len() != 1 {
                 return Err(anyhow::anyhow!("label.len() != 1, label bytes error"));
             }
-            labels.extend(label);
+            labels[i .. i+1].clone_from_slice(&label);
         }
 
         // trace!(
@@ -64,17 +64,16 @@ impl OrtTraining {
 
         let trainer = &self.trainer;
 
-        let inputs: ndarray::ArrayBase<ndarray::OwnedRepr<i64>, ndarray::Dim<[usize; 2]>> = ndarray::Array2::<IdsType>::from_shape_vec(
-            [self.training_batch_size, self.training_sequence_length],
-            inputs,
-        )
-        .map_err(|e| anyhow::anyhow!("Array2::<IdsType>::from_shape_vec(inputs), error: {e}"))?;
+        let inputs: ndarray::ArrayBase<ndarray::OwnedRepr<i64>, ndarray::Dim<[usize; 2]>> =
+            ndarray::Array2::<IdsType>::from_shape_vec(
+                [self.training_batch_size, self.training_sequence_length],
+                inputs,
+            )
+            .map_err(|e| {
+                anyhow::anyhow!("Array2::<IdsType>::from_shape_vec(inputs), error: {e}")
+            })?;
 
-        let labels =
-            ndarray::Array1::<LablesType>::from_shape_vec([self.training_batch_size], labels)
-                .map_err(|e| {
-                    anyhow::anyhow!("Array1::<IdsType>::from_shape_vec(labels), error: {e}")
-                })?;
+        let labels = ndarray::Array1::<LablesType>::from_vec(labels);
 
         trace!("step ndarray inputs: {:?}", inputs);
         trace!("step ndarray labels: {:?}", labels);
@@ -95,7 +94,7 @@ impl OrtTraining {
         let loss = outputs[0].try_extract_scalar::<LossType>().map_err(|e| {
             anyhow::anyhow!("outputs[0].try_extract_scalar::<LossType>(), error: {e}")
         })?;
-        
+
         if loss.is_nan() {
             return Ok(loss);
         }

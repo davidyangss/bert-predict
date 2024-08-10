@@ -16,31 +16,41 @@ import sys
 import torch
 import numpy as np
 import onnx
-from transformers import AutoConfig, AutoModelForMaskedLM, AutoModelForSequenceClassification, AutoTokenizer
+from transformers import (
+    AutoConfig,
+    AutoModelForMaskedLM,
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+)
 from torch import nn, Tensor
 from torch.nn import functional as F
 
 
+batch_size = 4
+max_seq_length = 256
+
+
 def build_base_model(tokenizer, model_path, config_path, device):
     config_kwargs = {
-        'cache_dir': None,
-        'revision': 'main',
-        'use_auth_token': None,
-
+        "cache_dir": None,
+        "revision": "main",
+        "use_auth_token": None,
     }
     config = AutoConfig.from_pretrained(config_path, **config_kwargs)
     # config_dict = config.to_dict()
     # for key, value in config_dict.items():
     #     print(f"{key}: {value}")
-    model = AutoModelForMaskedLM.from_pretrained(
-        model_path,
-        config=config,
-        revision='main',
-        use_auth_token=None
+    model = AutoModelForSequenceClassification.from_pretrained(
+        model_path, config=config, revision="main", use_auth_token=None
     )
     # for name, param in model.named_parameters():
     #     print(f"{name}: {param.size()}")
     model.to(device=device)
+
+    # set the model to inference mode
+    # It is important to call torch_model.eval() or torch_model.train(False) before exporting the model,
+    # to turn the model to inference mode. This is required since operators like dropout or batchnorm
+    # behave differently in inference and training mode.
     model.eval()
     model.resize_token_embeddings(len(tokenizer))
     return model
@@ -48,10 +58,10 @@ def build_base_model(tokenizer, model_path, config_path, device):
 
 def build_tokenizer(tokenizer_name):
     tokenizer_kwargs = {
-        'cache_dir': None,
-        'use_fast': True,
-        'revision': 'main',
-        'use_auth_token': None
+        "cache_dir": None,
+        "use_fast": True,
+        "revision": "main",
+        "use_auth_token": None,
     }
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, **tokenizer_kwargs)
     return tokenizer
@@ -72,19 +82,15 @@ class RefineModel(torch.nn.Module):
     #     x = self._base_model(input_ids, attention_mask, token_type_ids)
     #     logits = x.logits
     #     return logits.view(-1, logits.size(-1))
-    def forward(self, input_ids, attention_mask = None, token_type_ids = None):
-        outputs = self._base_model(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
-        logits = outputs.logits.to(torch.float32)
-        return logits.view(-1, logits.size(-1))
-
-def generate_random_data(shape, dtype, low=0, high=2):
-    if dtype in ["float32", "float16"]:
-        return np.random.random(shape).astype(dtype)
-    elif dtype in ["int32", "int64"]:
-        # return np.random.randint(low, high, shape).astype(dtype)
-        return np.random.uniform(low, high, shape).astype(dtype)
-    else:
-        raise NotImplementedError("Not supported format: {}".format(dtype))
+    def forward(self, input_ids, attention_mask=None, token_type_ids=None):
+        outputs = self._base_model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+        )
+        # logits = outputs.logits.to(torch.float32)
+        # return logits.view(-1, logits.size(-1))
+        return outputs
 
 
 def export_onnx(model_dir, save_path, seq_len=256, batch_size=16):
@@ -96,43 +102,49 @@ def export_onnx(model_dir, save_path, seq_len=256, batch_size=16):
     config_path = os.path.join(model_dir, "config.json")
     model = RefineModel(tokenizer, model_path, config_path)
 
-    # build data
-    input_data = (
-        torch.Tensor(generate_random_data([batch_size, seq_len], "int64")).to(torch.int64),
-        torch.Tensor(generate_random_data([batch_size, seq_len], "int64")).to(torch.int64),
-        torch.Tensor(generate_random_data([batch_size, seq_len], "int64")).to(torch.int64)
-    )
+    use_gpu = torch.cuda.is_available()
+    device = torch.device("cuda" if use_gpu else "cpu")
 
-    input_names = ["input_ids", "attention_mask", "token_type_ids"]
-    output_names = ["probs"]
-    dynamic_axes = {
-        'input_ids': {0: 'batch', 1: 'seq'},
-        'attention_mask': {0: 'batch', 1: 'seq'},
-        'token_type_ids': {0: 'batch', 1: 'seq'},
-        "probs": {0: "batch_seq"}
+    # Generate dummy inputs to the model. Adjust if necessary.
+    inputs = {
+        "input_ids": torch.randint(max_seq_length, [batch_size, max_seq_length], dtype=torch.int64).to(
+            device
+        ),  # list of numerical ids for the tokenised text
+        "attention_mask": torch.ones([batch_size, max_seq_length], dtype=torch.int64).to(
+            device
+        ),  # dummy list of ones
+        "token_type_ids": torch.ones([batch_size, max_seq_length], dtype=torch.int64).to(
+            device
+        ),  # dummy list of ones
     }
-    # input_names = ["input_ids"]
-    # output_names = ["probs"]
-    # dynamic_axes = {
-    #     'input_ids': {0: 'batch', 1: 'seq'},
-    #     "probs": {0: "batch_seq"}
-    # }
+    symbolic_names = {0: "batch_size", 1: "max_seq_len"}
 
-    # export onnx model
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     torch.onnx.export(
-        model=model,
-        args=input_data,
-        f=save_path,
-        dynamic_axes=dynamic_axes,
-        verbose=False,
-        opset_version=14,
-        input_names=input_names,
-        output_names=output_names
-    )
+        model,  # model being run
+        (
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            inputs["token_type_ids"],
+        ),  # model input (or a tuple for multiple inputs)
+        f=save_path,  # where to save the model (can be a file or file-like object)
+        opset_version=14,  # the ONNX version to export the model to
+        do_constant_folding=True,  # whether to execute constant folding for optimization
+        input_names=[
+            "input_ids",
+            "attention_mask",
+            "token_type_ids",
+        ],  # the model's input names
+        output_names=["logits"],  # the model's output names
+        dynamic_axes={
+            "input_ids": symbolic_names,
+            "attention_mask": symbolic_names,
+            "token_type_ids": symbolic_names,
+            "logits": {0: "batch_size"}
+        },
+    )  # variable length axes
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     model_dir = sys.argv[1]
     save_path = sys.argv[2]
     seq_len = int(sys.argv[3])

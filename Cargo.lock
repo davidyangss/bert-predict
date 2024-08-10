@@ -661,28 +661,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "futures-async-stream"
-version = "0.2.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cce57e88ba9fe4953f476112b2c8e315a2da07725a14dc091ac3e5b6e4cca72"
-dependencies = [
- "futures-async-stream-macro",
- "futures-core",
- "pin-project",
-]
-
-[[package]]
-name = "futures-async-stream-macro"
-version = "0.2.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ac45ed0bddbd110eb68862768a194f88700f5b91c39931d2f432fab67a16d08"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "futures-channel"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1386,7 +1364,6 @@ dependencies = [
  "async-stream",
  "clap",
  "futures",
- "futures-async-stream",
  "futures-util",
  "half",
  "hex",
@@ -1422,7 +1399,6 @@ dependencies = [
  "clap",
  "csv-async",
  "futures",
- "futures-async-stream",
  "futures-util",
  "half",
  "hex",
@@ -1455,8 +1431,6 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 [[package]]
 name = "ort"
 version = "2.0.0-rc.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86d83095ae3c1258738d70ae7a06195c94d966a8e546f0d3609dc90885fb61f5"
 dependencies = [
  "half",
  "js-sys",
@@ -1471,8 +1445,6 @@ dependencies = [
 [[package]]
 name = "ort-sys"
 version = "2.0.0-rc.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f2f6427193c808010b126bef45ebd33f8dee43770223a1200f84d3734d6c656"
 dependencies = [
  "pkg-config",
 ]

@@ -32,11 +32,16 @@ for domain in onnx_model.opset_import:
 		break
         
 requires_grad = [param.name for param in onnx_model.graph.initializer]
+frozen_params = []
+# for param in requires_grad:
+# 	print(f"requires_grad: {param}")
+# requires_grad = [name for name, param in onnx_model.named_parameters() if param.requires_grad]
+# frozen_params = [name for name, param in onnx_model.named_parameters() if not param.requires_grad]
 
 artifacts.generate_artifacts(
 	onnx_model,
 	requires_grad=requires_grad,
-	frozen_params=[],
+	frozen_params=frozen_params,
 	loss=artifacts.LossType.BCEWithLogitsLoss,
 	optimizer=artifacts.OptimType.AdamW,
     ort_format=True,
