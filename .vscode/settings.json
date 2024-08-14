@@ -29,5 +29,6 @@
             "path": "pwsh",
             "icon": "terminal-powershell"
         }
-    }
+    },
+    "python.terminal.activateEnvironment": false
 }

@@ -30,7 +30,11 @@ batch_size = 4
 max_seq_length = 256
 
 
-def build_base_model(tokenizer, model_path, config_path, device):
+def build_base_model(tokenizer, model_dir, device):
+    # model_path = os.path.join(model_dir, "pytorch_model.bin")
+    model_path = model_dir
+    config_path = os.path.join(model_dir, "config.json")
+    
     config_kwargs = {
         "cache_dir": None,
         "revision": "main",
@@ -40,6 +44,7 @@ def build_base_model(tokenizer, model_path, config_path, device):
     # config_dict = config.to_dict()
     # for key, value in config_dict.items():
     #     print(f"{key}: {value}")
+    # print(f"model_path = {model_path}")
     model = AutoModelForSequenceClassification.from_pretrained(
         model_path, config=config, revision="main", use_auth_token=None
     )
@@ -68,9 +73,9 @@ def build_tokenizer(tokenizer_name):
 
 
 class RefineModel(torch.nn.Module):
-    def __init__(self, tokenizer, model_path, config_path, device="cpu"):
+    def __init__(self, tokenizer, model_dir, device="cpu"):
         super(RefineModel, self).__init__()
-        self._base_model = build_base_model(tokenizer, model_path, config_path, device)
+        self._base_model = build_base_model(tokenizer, model_dir, device)
 
     # def forward(self, input_ids, attention_mask, token_type_ids):
     #     x = self._base_model(input_ids, attention_mask, token_type_ids)
@@ -98,9 +103,7 @@ def export_onnx(model_dir, save_path, seq_len=256, batch_size=16):
     tokenizer = build_tokenizer(tokenizer_name=model_dir)
 
     # build model
-    model_path = os.path.join(model_dir, "pytorch_model.bin")
-    config_path = os.path.join(model_dir, "config.json")
-    model = RefineModel(tokenizer, model_path, config_path)
+    model = RefineModel(tokenizer, model_dir)
 
     use_gpu = torch.cuda.is_available()
     device = torch.device("cuda" if use_gpu else "cpu")

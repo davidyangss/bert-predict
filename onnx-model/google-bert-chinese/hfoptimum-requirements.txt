@@ -1,24 +1,30 @@
 pip
 
-numpy~=1.25
-# onnx~=1.16
-onnx-weekly
+numpy==1.26.4
+onnx==1.16.2
+# onnx-weekly
+
+torch==2.4.0
+torch-ort==1.18.0
 onnxruntime-training==1.18.0
---extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/ORT/pypi/simple/ onnxruntime-training-cpu==1.18.0
-torch~=2.4
-torch-ort~=1.18
-onnxruntime-training-cpu==1.18.0
 
-transformers[torch]
-onnx-simplifier
+# pip install at onnx-model/google-bert-chinese/make.sh#venv_hfoptimum
+# onnxruntime-training-cpu==1.18.0
+# --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/ORT/pypi/simple/ onnxruntime-training-cpu==1.18.0
 
-optimum==1.21.2
-optimum[onnxruntime]
-optimum[exporters]
+# >=4.38.0 <=4.40.0
+transformers[torch]==4.39.3
+onnx-simplifier==0.4.36
+
+optimum==1.21.3
+optimum[onnxruntime]==1.21.3
+optimum[exporters]==1.21.3
 onnxruntime==1.18.0
 accelerate==0.33.0
-datasets >= 1.8.0
-sentencepiece != 0.1.92
-scipy
-scikit-learn
-protobuf
+datasets==2.21.0
+sentencepiece==0.2.0
+scipy==1.14.0
+scikit-learn==1.5.1
+protobuf==5.27.3
+peft==0.12.0
+deepspeed==0.14.5

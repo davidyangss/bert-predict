@@ -8,7 +8,10 @@ set -e -o pipefail
 GOOGLE_BERT_CHINESE_DIR=$script_path
 GOOGLE_BERT_MODEL_DIR=$GOOGLE_BERT_CHINESE_DIR/base_model
 GOOGLE_BERT_MODEL_ONNX_FILE=$GOOGLE_BERT_MODEL_DIR/model.onnx
+GOOGLE_BERT_MODEL_TRAINED=$GOOGLE_BERT_CHINESE_DIR/hfoptimum-trained
+GOOGLE_BERT_MODEL_TRAINING=$GOOGLE_BERT_CHINESE_DIR/hfoptimum-training
 GOOGLE_BERT_ONNX_DIR=$GOOGLE_BERT_CHINESE_DIR/onnx-artifacts
+GOOGLE_BERT_TRAINING_DATA=$GOOGLE_BERT_CHINESE_DIR/../../data
 
 GOOGLE_BERT_PYVENV_NAME=google-bert-chinese-onnx
 GOOGLE_BERT_EXPORT_PYVENV_NAME=hfoptimum
@@ -56,7 +59,16 @@ function venv_hfoptimum {
         return
     fi
 
-    pip install --require-virtualenv -r $requirements_txt
+    pip install --require-virtualenv \
+        -r $requirements_txt \
+        --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/ORT/pypi/simple/
+
+    # ImportError: cannot import name 'PropagateCastOpsStrategy' from 'onnxruntime.capi._pybind_state'
+    pip install \
+        --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/ORT/pypi/simple/ \
+        onnxruntime-training-cpu==1.18.0
+    python -m torch_ort.configure
+
     info "OK. installed requirements.txt for $GOOGLE_BERT_EXPORT_PYVENV_NAME."
     echo $md5_req > ${VIRTUAL_ENV}/requirements.txt.md5
 }
@@ -79,6 +91,8 @@ function official-model-export {
 }
 
 function git_model-bert-base-chinese {
+    GOOGLE_BERT_MODEL_DIR=${GOOGLE_BERT_MODEL_DIR}.git
+
     info "git clone https://hf-mirror.com/google-bert/bert-base-chinese"
     # GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/google-bert/bert-base-chinese $GOOGLE_BERT_MODEL_DIR
     if [ -d $GOOGLE_BERT_MODEL_DIR ]; then
@@ -117,6 +131,9 @@ function venv_onnx {
 # python3 pth2onnx.py ./bert-base-chinese ./bert_base_chinese.onnx 384
 function onnx-export-base_model {
     venv_hfoptimum
+
+    GOOGLE_BERT_MODEL_DIR=${GOOGLE_BERT_MODEL_DIR}.git
+    GOOGLE_BERT_MODEL_ONNX_FILE=$GOOGLE_BERT_MODEL_DIR/model.onnx
 
     model_dir=$GOOGLE_BERT_MODEL_DIR
     output_path=$GOOGLE_BERT_MODEL_ONNX_FILE
@@ -185,6 +202,69 @@ function hfoptimum-glue {
     info "Done. hfoptimum-glue ok."
 }
 
+# Depend on: ./onnx-model/google-bert-chinese/make.sh git_model-bert-base-chinese
+function hfoptimum-training {
+    venv_hfoptimum
+
+    GOOGLE_BERT_MODEL_DIR=${GOOGLE_BERT_MODEL_DIR}.git
+
+    rm -rf $GOOGLE_BERT_MODEL_TRAINED && mkdir -p $GOOGLE_BERT_MODEL_TRAINED
+    # command: torchrun == python -m torch.distributed.run
+    # --nproc_per_node cpu \
+    torchrun_args="-m torch.distributed.run \
+        --nproc_per_node ${MAX_JOBS:-4} \
+        --log-dir $GOOGLE_BERT_MODEL_TRAINED/logs \
+        --tee 3"
+    torchrun_args=""
+
+    cmd=$(cat <<EOF
+python $torchrun_args \
+    $GOOGLE_BERT_MODEL_TRAINING/run_classification.py \
+    --model_name_or_path $GOOGLE_BERT_MODEL_DIR \
+    --tokenizer_name $GOOGLE_BERT_MODEL_DIR \
+    --train_file $GOOGLE_BERT_TRAINING_DATA/train.csv \
+    --validation_file $GOOGLE_BERT_TRAINING_DATA/eval.csv \
+    --test_file $GOOGLE_BERT_TRAINING_DATA/test.csv \
+    --deepspeed $GOOGLE_BERT_MODEL_TRAINING/zero_stage_2.json \
+    --output_dir $GOOGLE_BERT_MODEL_TRAINED \
+    --max_eval_samples 10 \
+    --max_train_samples 50 \
+    --metric_name accuracy \
+    --text_column_name text \
+    --label_column_name label \
+    --csv_column_delimiter \\t \
+    --onnx_log_level info \
+    --do_train \
+    --do_eval \
+    --do_predict \
+    --pad_to_max_length True \
+    --max_seq_length $SHAPE_SEQ_LEN \
+    --per_device_train_batch_size $SHAPE_BATCH_SIZE \
+    --learning_rate 2e-5 \
+    --num_train_epochs 1 \
+    --evaluation_strategy epoch \
+    --use_peft \
+    --overwrite_output_dir \
+    --optim adamw_torch
+EOF
+)
+    # info "$cmd"
+    (
+        export OMP_NUM_THREADS=1
+        export MAX_JOBS=4
+
+        set -x
+        $cmd
+    )
+
+    local status=$?
+    if [ $status -ne 0 ]; then
+        die "Failed($status): $cmd"
+    else
+        info "Done. hfoptimum-training ok."
+    fi
+}
+
 
 function onnx-artifacts {
     venv_onnx
@@ -226,5 +306,5 @@ shift
 
 command -v $SUBCMD > /dev/null || die "subcommand $SUBCMD required, not exists function $SUBCMD at the helper.sh ."
 
-$SUBCMD $@
+($SUBCMD $@; exit $?)
 

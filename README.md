@@ -50,7 +50,7 @@ The purpose of this project is to explore the application of Rust in NLP. On one
         --files-chunks=1 \
         --out-dataset-bin="./target/dataset.bin" \
         --csv-delimiter="	" \
-        --csvs="data/train.tsv"
+        --csvs="data/train.csv"
     ```
 ### onnx_bert_chinese_ort_train, using datasets for train
 1. From `From git@github.com:pykeio/ort.git, branch = 2.0.0-rc.4, file = examples/training/examples/train-clm.rs`
@@ -79,6 +79,16 @@ The purpose of this project is to explore the application of Rust in NLP. On one
 
     Error: trainer.step(inputs, labels), error: Failed to run inference on model: /onnxruntime_src/orttraining/orttraining/training_api/module.cc:632 onnxruntime::common::Status onnxruntime::training::api::Module::TrainStep(const std::vector<OrtValue>&, std::vector<OrtValue>&) [ONNXRuntimeError] : 2 : INVALID_ARGUMENT : Unexpected input data type. Actual: (tensor(int64)) , expected: (tensor(float))
     ```
+
+## Python, huggingface-optimum, training OK
+1. 版本兼容问题导致了很多问题，最终确定了版本 onnx-model/google-bert-chinese/hfoptimum-requirements.txt
+1. ```
+    # git clone 
+    ./onnx-model/google-bert-chinese/make.sh git_model-bert-base-chinese
+    # training ~~ .vscode/launch.json#Python: hfoptimum-training
+    ./onnx-model/google-bert-chinese/make.sh hfoptimum-training
+   ```
+
 
 # References
 1. [onnxruntime](https://github.com/microsoft/onnxruntime)

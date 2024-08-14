@@ -8,6 +8,7 @@ data/csvs
 /onnx-model/google-bert-chinese/pyvenv
 /onnx-model/google-bert-chinese/onnx-training
 /onnx-model/google-bert-chinese/model
-/onnx-model/google-bert-chinese/base_model
+/onnx-model/google-bert-chinese/base_model*
+/onnx-model/google-bert-chinese/*trained
 /onnx-model/google-bert-chinese/onnx-artifacts
 
