@@ -27,6 +27,21 @@
             "justMyCode": false
         },
         {
+            "name": "Python: hfoptimum-glue-2.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "onnx-model/google-bert-chinese/hfoptimum-glue-2.py",
+            "console": "integratedTerminal",
+            "env": {"PYTHONPATH": "${workspaceFolder}"},
+            "args": ["--model_name_or_path", "distilbert-base-uncased-finetuned-sst-2-english",
+                "--task_name", "sst2",
+                "--do_eval",
+                "--output_dir", "/tmp/optimized_distilbert_sst2",
+                "--overwrite_output_dir"
+            ],
+            "justMyCode": false
+        },
+        {
             "name": "Python: hfoptimum-training",
             "type": "debugpy",
             "request": "launch",

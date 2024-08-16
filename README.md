@@ -89,7 +89,7 @@ The purpose of this project is to explore the application of Rust in NLP. On one
     # training ~~ .vscode/launch.json#Python: hfoptimum-training
     ./onnx-model/google-bert-chinese/make.sh hfoptimum-training
    ```
-1. By running the script [`onnx-model/google-bert-chinese/hfoptimum-glue.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/text-classification/run_glue.py),
+1. By running the script [`onnx-model/google-bert-chinese/hfoptimum-glue-2.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/text-classification/run_glue.py),
 we will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) accelerator to fine-tune the models from the
 [HuggingFace hub](https://huggingface.co/models) for sequence classification on the [GLUE benchmark](https://gluebenchmark.com/).
 
