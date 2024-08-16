@@ -193,13 +193,26 @@ function hfoptimum-glue {
     venv_hfoptimum
 
     rm -rf $GOOGLE_BERT_MODEL_DIR && mkdir -p $GOOGLE_BERT_MODEL_DIR
-    python3 $GOOGLE_BERT_CHINESE_DIR/hfoptimum-glue.py \
-        --model_name_or_path google-bert/bert-base-chinese \
-        --task_name sst2 \
-        --optimization_level 1 \
-        --overwrite_output_dir \
-        --output_dir $GOOGLE_BERT_MODEL_DIR
-    info "Done. hfoptimum-glue ok."
+
+    cmd=$(cat <<EOF
+        python3 $GOOGLE_BERT_CHINESE_DIR/hfoptimum-glue.py \
+            --model_name_or_path google-bert/bert-base-chinese \
+            --task_name sst2 \
+            --overwrite_output_dir \
+            --output_dir $GOOGLE_BERT_MODEL_DIR
+EOF
+)
+    (
+        set -x
+        $cmd
+    )
+
+    local status=$?
+    if [ $status -ne 0 ]; then
+        die "Failed($status): $cmd"
+    else
+        info "Done. hfoptimum-glue ok."
+    fi
 }
 
 # Depend on: ./onnx-model/google-bert-chinese/make.sh git_model-bert-base-chinese
@@ -217,35 +230,36 @@ function hfoptimum-training {
         --tee 3"
     torchrun_args=""
 
+    # --optim=adamw_ort_fused,
     cmd=$(cat <<EOF
-python $torchrun_args \
-    $GOOGLE_BERT_MODEL_TRAINING/run_classification.py \
-    --model_name_or_path $GOOGLE_BERT_MODEL_DIR \
-    --tokenizer_name $GOOGLE_BERT_MODEL_DIR \
-    --train_file $GOOGLE_BERT_TRAINING_DATA/train.csv \
-    --validation_file $GOOGLE_BERT_TRAINING_DATA/eval.csv \
-    --test_file $GOOGLE_BERT_TRAINING_DATA/test.csv \
-    --deepspeed $GOOGLE_BERT_MODEL_TRAINING/zero_stage_2.json \
-    --output_dir $GOOGLE_BERT_MODEL_TRAINED \
-    --max_eval_samples 10 \
-    --max_train_samples 50 \
-    --metric_name accuracy \
-    --text_column_name text \
-    --label_column_name label \
-    --csv_column_delimiter \\t \
-    --onnx_log_level info \
-    --do_train \
-    --do_eval \
-    --do_predict \
-    --pad_to_max_length True \
-    --max_seq_length $SHAPE_SEQ_LEN \
-    --per_device_train_batch_size $SHAPE_BATCH_SIZE \
-    --learning_rate 2e-5 \
-    --num_train_epochs 1 \
-    --evaluation_strategy epoch \
-    --use_peft \
-    --overwrite_output_dir \
-    --optim adamw_torch
+        python $torchrun_args \
+            $GOOGLE_BERT_MODEL_TRAINING/run_classification.py \
+            --model_name_or_path $GOOGLE_BERT_MODEL_DIR \
+            --tokenizer_name $GOOGLE_BERT_MODEL_DIR \
+            --train_file $GOOGLE_BERT_TRAINING_DATA/train.csv \
+            --validation_file $GOOGLE_BERT_TRAINING_DATA/eval.csv \
+            --test_file $GOOGLE_BERT_TRAINING_DATA/test.csv \
+            --deepspeed $GOOGLE_BERT_MODEL_TRAINING/zero_stage_2.json \
+            --output_dir $GOOGLE_BERT_MODEL_TRAINED \
+            --max_eval_samples 10 \
+            --max_train_samples 50 \
+            --metric_name accuracy \
+            --text_column_name text \
+            --label_column_name label \
+            --csv_column_delimiter \\t \
+            --onnx_log_level info \
+            --do_train \
+            --do_eval \
+            --do_predict \
+            --pad_to_max_length True \
+            --max_seq_length $SHAPE_SEQ_LEN \
+            --per_device_train_batch_size $SHAPE_BATCH_SIZE \
+            --learning_rate 2e-5 \
+            --num_train_epochs 1 \
+            --evaluation_strategy epoch \
+            --use_peft \
+            --overwrite_output_dir \
+            --optim adamw_torch
 EOF
 )
     # info "$cmd"
