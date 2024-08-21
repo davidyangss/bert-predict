@@ -254,7 +254,7 @@ function hfoptimum-training {
             --deepspeed $GOOGLE_BERT_MODEL_TRAINING/zero_stage_2.json \
             --output_dir $GOOGLE_BERT_MODEL_TRAINED \
             --save_onnx True \
-            --onnx_prefix trained \
+            --onnx_prefix bert-zh \
             --max_eval_samples 10 \
             --max_train_samples 50 \
             --metric_name accuracy \
