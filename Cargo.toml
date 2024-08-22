@@ -11,13 +11,13 @@ default-members = [
 ]
 
 [workspace.dependencies]
-ort = { version = "2.0.0-rc.4", default-features = false, features = [
+ort = { version = "=2.0.0-rc.5", default-features = false, features = [
     "ndarray",
     "half",
     "training",
     "load-dynamic",
 ] }
-ndarray = "0.15"
+ndarray = "0.16"
 half = "2.1"
 tokenizers = { version = ">=0.13.4", default-features = false, features = [
     "onig",
