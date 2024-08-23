@@ -11,7 +11,7 @@
             "justMyCode": false
         },
         {
-            "name": "Python: hfoptimum-glue.py",
+            "name": "Py: hf-glue",
             "type": "debugpy",
             "request": "launch",
             "program": "onnx-model/google-bert-chinese/hfoptimum-glue.py",
@@ -27,7 +27,7 @@
             "justMyCode": false
         },
         {
-            "name": "Python: hfoptimum-glue-2.py",
+            "name": "Py: hf-glue2",
             "type": "debugpy",
             "request": "launch",
             "program": "onnx-model/google-bert-chinese/hfoptimum-glue-2.py",
@@ -42,12 +42,15 @@
             "justMyCode": false
         },
         {
-            "name": "Python: hfoptimum-training",
+            "name": "Py: hf-training",
             "type": "debugpy",
             "request": "launch",
             "program": "onnx-model/google-bert-chinese/hfoptimum-training/run_classification.py",
             "console": "integratedTerminal",
-            "env": {"PYTHONPATH": "${workspaceFolder}"},
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "ORTMODULE_MEMORY_OPT_LEVEL": "2",
+            },
             "args": [
                 "--model_name_or_path", "onnx-model/google-bert-chinese/base_model.git",
                 "--tokenizer_name", "onnx-model/google-bert-chinese/base_model.git",
@@ -77,6 +80,21 @@
                 "--optim", "adamw_torch",
             ],
             "justMyCode": false
-        }
+        },
+        {
+            "name": "Py: artifacts",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "onnx-model/google-bert-chinese/onnx-artifacts.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "ONNX_MODEL": "${workspaceFolder}/onnx-model/google-bert-chinese/base_model/model.onnx",
+                "ONNX_OUTPUT": "${workspaceFolder}/onnx-model/google-bert-chinese/onnx-artifacts"
+            },
+            "args": [
+            ],
+            "justMyCode": false
+        },
     ]
 }

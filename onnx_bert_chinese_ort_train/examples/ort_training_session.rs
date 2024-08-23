@@ -52,7 +52,6 @@ fn main() -> anyhow::Result<()> {
     let train_output_names = ort_training.get_trainer().train_output_names();
     info!("train_output_names: {train_output_names:?}");
 
-    print_input_names(ort_training_session_ptr)?;
     print_output_names(ort_training_session_ptr)?;
 
     do_training(tokinizer, ort_training)?;
@@ -106,38 +105,13 @@ fn do_training(tokinizer: Tokenizer, ort_training: OrtTraining) -> anyhow::Resul
             token_type_ids_ndarray.view()
         ]
         .map_err(|e| anyhow::anyhow!("ort::inputs![inputs.view()], error: {e}"))?;
-    let labels_ndarray = ndarray::Array1::<IdsType>::from_vec(vec![1]);
+    let labels_ndarray = ndarray::Array1::<IdsType>::from_vec(vec![1; TRAINING_BATCH_SIZE]);
     let labels = ort::inputs![labels_ndarray]
         .map_err(|e| anyhow::anyhow!("ort::inputs![labels.view()], error: {e}"))?;
 
     ort_training.get_trainer().step(inputs, labels)?;
     info!("training done");
 
-    Ok(())
-}
-
-fn print_input_names(ort_training_session_ptr: NonNull<OrtTrainingSession>) -> anyhow::Result<()> {
-    let allocator = Allocator::default();
-
-    let mut train_input_len = 0;
-    trainsys![unsafe TrainingSessionGetTrainingModelInputCount(ort_training_session_ptr.as_ptr(), &mut train_input_len) -> Error::CreateSession];
-    info!("train_input_len={train_input_len}");
-    let train_input_names = (0..train_input_len)
-			.map(|i| {
-				let mut name_bytes: *mut std::ffi::c_char = std::ptr::null_mut();
-				trainsys![unsafe TrainingSessionGetTrainingModelInputName(ort_training_session_ptr.as_ptr(), i, allocator.ptr.as_ptr(), &mut name_bytes) -> Error::CreateSession];
-				let name = match char_p_to_string(name_bytes) {
-					Ok(name) => name,
-					Err(e) => {
-						unsafe { allocator.free(name_bytes) };
-						return Err(e);
-					}
-				};
-				unsafe { allocator.free(name_bytes) };
-				Ok(name)
-			})
-			.collect::<Result<Vec<String>, ort::Error>>();
-    info!("print_input_names: {train_input_names:?}");
     Ok(())
 }
 

@@ -301,6 +301,11 @@ def main():
             raise ValueError("`token` and `use_auth_token` are both specified. Please set only the argument `token`.")
         model_args.token = model_args.use_auth_token
 
+    logger.info(f"model_args={model_args}")
+    logger.info(f"data_args={data_args}")
+    logger.info(f"training_args={training_args}")
+
+
     # Sending telemetry. Tracking the example usage helps us better allocate resources to maintain them. The
     # information sent is the one passed as arguments along with your Python/PyTorch versions.
     send_example_telemetry("run_classification", model_args, data_args)

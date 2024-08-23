@@ -18,7 +18,7 @@ GOOGLE_BERT_PYVENV_NAME=google-bert-chinese-onnx
 
 SHAPE_BATCH_SIZE=4
 SHAPE_SEQ_LEN=256
-OPSET_VERSION=14
+OPSET_VERSION=16
 
 function workon_pyenv_or_create {
     pyenv_name=$1
@@ -60,13 +60,12 @@ function venv_hfoptimum {
     fi
 
     pip install --require-virtualenv \
-        -r $requirements_txt \
-        --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/ORT/pypi/simple/
+        -r $requirements_txt
 
     # ImportError: cannot import name 'PropagateCastOpsStrategy' from 'onnxruntime.capi._pybind_state'
     pip install \
         --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/ORT/pypi/simple/ \
-        onnxruntime-training-cpu==1.18.0
+        onnxruntime-training-cpu==1.19.1
     python -m torch_ort.configure
 
     info "OK. installed requirements.txt for $GOOGLE_BERT_EXPORT_PYVENV_NAME."
@@ -86,8 +85,6 @@ function official-model-export {
 
     mv $GOOGLE_BERT_MODEL_DIR/*.onnx $GOOGLE_BERT_MODEL_ONNX_FILE || return
     export opt_onnx_model=$GOOGLE_BERT_MODEL_ONNX_FILE
-
-    deactivate
 }
 
 function git_model-bert-base-chinese {
@@ -109,7 +106,6 @@ function git_model-bert-base-chinese {
 function venv_onnx {
     venv_hfoptimum
 }
-
 function venv_onnx-2 {
     workon_pyenv_or_create $GOOGLE_BERT_PYVENV_NAME
 
@@ -121,7 +117,8 @@ function venv_onnx-2 {
         return
     fi
 
-    pip install --require-virtualenv -r $requirements_txt
+    pip install --require-virtualenv -r $requirements_txt \
+        --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/ORT/pypi/simple/
     info "OK. installed requirements.txt for $GOOGLE_BERT_PYVENV_NAME."
     # echo $md5_req > ${VIRTUAL_ENV}/requirements.txt.md5
 
@@ -149,8 +146,6 @@ function onnx-export-base_model {
     info "Done. onnx-export ok."
 
     export opt_onnx_model=$output_path
-
-    # deactivate
 }
 
 # 修改优化模型：${bs}:[1, 4, 8, 16, 32, 64],${seq_len}:384
@@ -316,7 +311,7 @@ if [ $# -lt 1 ]; then
         hfoptimum-export-model-onnx
         hfoptimum-check
         info "Done. exported"
-        deactivate
+        # deactivate
     )
     
     (
@@ -324,7 +319,7 @@ if [ $# -lt 1 ]; then
         info "onnx-artifacts..."
         onnx-artifacts
         info "Done($?). onnx-artifacts"
-        deactivate
+        # deactivate
     )
     exit 0
 fi

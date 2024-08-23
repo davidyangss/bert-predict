@@ -28,6 +28,7 @@ from torch.nn import functional as F
 
 batch_size = 4
 max_seq_length = 256
+opset_version = 17
 
 
 def build_base_model(tokenizer, model_dir, device):
@@ -131,7 +132,7 @@ def export_onnx(model_dir, save_path, seq_len=256, batch_size=16):
             inputs["token_type_ids"],
         ),  # model input (or a tuple for multiple inputs)
         f=save_path,  # where to save the model (can be a file or file-like object)
-        opset_version=14,  # the ONNX version to export the model to
+        opset_version=opset_version,  # the ONNX version to export the model to
         do_constant_folding=True,  # whether to execute constant folding for optimization
         input_names=[
             "input_ids",

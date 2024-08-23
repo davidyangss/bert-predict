@@ -10,6 +10,11 @@ The purpose of this project is to explore the application of Rust in NLP. On one
         MODEL_FILE=model.onnx \
         AUTO_TOKENIZER_MODEL_NAME_OR_PATH=onnx-model/google-bert-chinese/base_model \
         python onnx-model/google-bert-chinese/hfoptimum-check.py
+
+    MODEL_PATH=onnx-model/google-bert-chinese/onnx-artifacts \
+        MODEL_FILE=training_model.onnx \
+        AUTO_TOKENIZER_MODEL_NAME_OR_PATH=onnx-model/google-bert-chinese/base_model \
+        python onnx-model/google-bert-chinese/hfoptimum-check.py
     ```
 1. hfoptimum-glue.py: a example, from `git@github.com:huggingface/optimum.git` path = `examples/onnxruntime/optimization/text-classification/run_glue.py`
     ``` bash

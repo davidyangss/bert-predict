@@ -36,6 +36,10 @@ optimized_model = optimized_model_path / model_file
 print(f"Will load: {optimized_model}")
 
 onnx_model = onnx.load(optimized_model)
+for domain in onnx_model.opset_import:
+	print(f"domain: {domain}")
+	if domain.domain == "" or domain.domain == "ai.onnx":
+		break
 onnx.checker.check_model(onnx_model)
 print("Model is valid ONNX")
 
