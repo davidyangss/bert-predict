@@ -45,7 +45,7 @@ artifacts.generate_artifacts(
 	onnx_model,
 	requires_grad=requires_grad,
 	frozen_params=frozen_params,
-	loss=artifacts.LossType.BCEWithLogitsLoss,
+	loss=artifacts.LossType.CrossEntropyLoss,
 	optimizer=artifacts.OptimType.AdamW,
     ort_format=True,
     additional_output_names=["logits"],

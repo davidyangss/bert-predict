@@ -79,10 +79,33 @@ The purpose of this project is to explore the application of Rust in NLP. On one
 
 ### The issue I am currently facing
 1. ```
+    Error: trainer.step(inputs, labels), error: Failed to run inference on model: /onnxruntime_src/orttraining/orttraining/training_api/module.cc:632 onnxruntime::common::Status onnxruntime::training::api::Module::TrainStep(const std::vector<OrtValue>&, std::vector<OrtValue>&) [ONNXRuntimeError] : 2 : INVALID_ARGUMENT : feed names has 407 elements, but feed has 405 elements.
+    netron 分析 onnx-model/google-bert-chinese/onnx-artifacts/training_model.onnx，
+        inputs
+            1. input_ids
+                name: input_ids
+                tensor: int64[batch_size,sequence_length]
+            2. attention_mask
+                name: attention_mask
+                tensor: int64[batch_size,sequence_length]
+            3. token_type_ids
+                name: token_type_ids
+                tensor: int64[batch_size,sequence_length]
+            4. labels
+                name: labels
+                tensor: int64[batch_size]
+    而调用trainer.step(inputs, labels)中inputs个数不对
+   ```
+
+1. ```
     # Run:
     cargo run -p onnx_bert_chinese_ort_train --example training
 
     Error: trainer.step(inputs, labels), error: Failed to run inference on model: /onnxruntime_src/orttraining/orttraining/training_api/module.cc:632 onnxruntime::common::Status onnxruntime::training::api::Module::TrainStep(const std::vector<OrtValue>&, std::vector<OrtValue>&) [ONNXRuntimeError] : 2 : INVALID_ARGUMENT : Unexpected input data type. Actual: (tensor(int64)) , expected: (tensor(float))
+
+    artifacts.generate_artifacts(.., BCEWithLogitsLoss, ..)
+    netron 分析 onnx-model/google-bert-chinese/onnx-artifacts/training_model.onnx，inputs target 是 tensor(float)。
+    改为 artifacts.generate_artifacts(.., CrossEntropyLoss, ..) 重新生成 inputs labels 是 tensor(int64)。
     ```
 
 ## Python, huggingface-optimum, training OK
