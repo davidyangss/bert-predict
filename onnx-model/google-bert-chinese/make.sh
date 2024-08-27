@@ -16,9 +16,9 @@ GOOGLE_BERT_TRAINING_DATA=$GOOGLE_BERT_CHINESE_DIR/../../data
 GOOGLE_BERT_EXPORT_PYVENV_NAME=hfoptimum
 GOOGLE_BERT_PYVENV_NAME=google-bert-chinese-onnx
 
-SHAPE_BATCH_SIZE=4
-SHAPE_SEQ_LEN=256
-OPSET_VERSION=16
+export SHAPE_BATCH_SIZE=4
+export SHAPE_SEQ_LEN=256
+export OPSET_VERSION=16
 
 function workon_pyenv_or_create {
     pyenv_name=$1
@@ -136,13 +136,12 @@ function onnx-export-base_model {
     GOOGLE_BERT_MODEL_DIR=${GOOGLE_BERT_MODEL_DIR}.git
     GOOGLE_BERT_MODEL_ONNX_FILE=$GOOGLE_BERT_MODEL_DIR/model.onnx
 
-    model_dir=$GOOGLE_BERT_MODEL_DIR
-    output_path=$GOOGLE_BERT_MODEL_ONNX_FILE
-
-    batch_size=${SHAPE_BATCH_SIZE}
-    seq_length=${SHAPE_SEQ_LEN}
-
-    python $GOOGLE_BERT_CHINESE_DIR/model.onnx-export.py $model_dir $output_path $seq_length $batch_size
+    MODEL_NAME_OR_PATH=$GOOGLE_BERT_MODEL_DIR \
+        ONNX_OUTPUT=$GOOGLE_BERT_MODEL_ONNX_FILE \
+        ONNX_OPSET=$OPSET_VERSION \
+        ONNX_BATCH_SIZE=$SHAPE_BATCH_SIZE \
+        ONNX_SEQUENCE_LENGTH=$SHAPE_SEQ_LEN \
+        python $GOOGLE_BERT_CHINESE_DIR/model.onnx-export.py
     info "Done. onnx-export ok."
 
     export opt_onnx_model=$output_path
@@ -286,6 +285,19 @@ EOF
     else
         info "Done. hfoptimum-training ok."
     fi
+}
+
+
+function hfoptimum-trained-to-model_onnx {
+    venv_hfoptimum
+
+    MODEL_NAME_OR_PATH=$GOOGLE_BERT_MODEL_TRAINED \
+        ONNX_OUTPUT=$GOOGLE_BERT_MODEL_TRAINED/model.onnx \
+        ONNX_OPSET=$OPSET_VERSION \
+        ONNX_BATCH_SIZE=$SHAPE_BATCH_SIZE \
+        ONNX_SEQUENCE_LENGTH=$SHAPE_SEQ_LEN \
+        python $GOOGLE_BERT_CHINESE_DIR/model.onnx-export.py
+    info "Done. After hfoptimum trained, export model.onnx ok."
 }
 
 

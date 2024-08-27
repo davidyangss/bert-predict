@@ -33,7 +33,7 @@ output = os.environ.get("ONNX_OUTPUT", f"{script_dir}/base_model")
 output_path = Path(output)
 output_path.mkdir(parents=True, exist_ok=True)
 
-opset = int(os.environ.get("ONNX_OPSET", "17"))
+opset = int(os.environ.get("ONNX_OPSET"))
 batch_size = int(os.environ.get("ONNX_BATCH_SIZE", "4"))
 sequence_length = int(os.environ.get("ONNX_SEQUENCE_LENGTH", "256"))
 

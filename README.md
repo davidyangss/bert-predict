@@ -40,7 +40,7 @@ The purpose of this project is to explore the application of Rust in NLP. On one
     ```bash
     ./onnx-model/google-bert-chinese/make.sh
     ```
-## ~~Rust, using ort.~~
+## Rust, using ort.
 **Give up because the call failed and the example failed to run. Try [burn](https://github.com/tracel-ai/burn) instead of ort**
 ### Depends on [ort=2.0.0-rc.4](https://crates.io/crates/ort/2.0.0-rc.4), [Guide](https://ort.pyke.io/)
 1. Runtime depends on linux. I use OrbStack at macOS.
@@ -117,10 +117,10 @@ The purpose of this project is to explore the application of Rust in NLP. On one
     # training ~~ .vscode/launch.json#Python: hfoptimum-training
     ./onnx-model/google-bert-chinese/make.sh hfoptimum-training
    ```
-1. By running the script [`onnx-model/google-bert-chinese/hfoptimum-glue-2.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/text-classification/run_glue.py),
-we will be able to leverage the [`ONNX Runtime`](https://github.com/microsoft/onnxruntime) accelerator to fine-tune the models from the
-[HuggingFace hub](https://huggingface.co/models) for sequence classification on the [GLUE benchmark](https://gluebenchmark.com/).
-
+1. ```
+    # 导出 onnx model
+    ./onnx-model/google-bert-chinese/make.sh hfoptimum-trained-to-model_onnx
+   ```
 
 # References
 1. [onnxruntime](https://github.com/microsoft/onnxruntime)

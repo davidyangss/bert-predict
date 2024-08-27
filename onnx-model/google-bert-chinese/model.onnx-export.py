@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+from pathlib import Path
 import sys
 import torch
 import numpy as np
@@ -25,17 +26,31 @@ from transformers import (
 from torch import nn, Tensor
 from torch.nn import functional as F
 
+model_dir = os.environ.get("MODEL_NAME_OR_PATH")
 
-batch_size = 4
-max_seq_length = 256
-opset_version = 17
+script_path = os.path.abspath(__file__)
+script_dir = os.path.dirname(script_path)
+save_path = os.environ.get("ONNX_OUTPUT", f"{script_dir}/base_model")
+save_path = Path(save_path)
+if os.path.exists(save_path):
+    os.remove(save_path)
+if not os.path.exists(save_path.parent):
+    os.makedirs(save_path.parent, exist_ok=True)
+out_dir = save_path.parent
 
+opset_version = int(os.environ.get("ONNX_OPSET"))
+batch_size = int(os.environ.get("ONNX_BATCH_SIZE", "4"))
+max_seq_length = int(os.environ.get("ONNX_SEQUENCE_LENGTH", "256"))
+print(f"opset_version = {opset_version}, batch_size = {batch_size}, max_seq_length = {max_seq_length}, model_dir={model_dir}, save_path={save_path}")
 
 def build_base_model(tokenizer, model_dir, device):
     # model_path = os.path.join(model_dir, "pytorch_model.bin")
     model_path = model_dir
-    config_path = os.path.join(model_dir, "config.json")
-    
+
+    config_path = os.path.join(model_dir, "adapter_config.json")
+    if not os.path.exists(config_path):
+        config_path = os.path.join(model_dir, "config.json")
+
     config_kwargs = {
         "cache_dir": None,
         "revision": "main",
@@ -47,7 +62,8 @@ def build_base_model(tokenizer, model_dir, device):
     #     print(f"{key}: {value}")
     # print(f"model_path = {model_path}")
     model = AutoModelForSequenceClassification.from_pretrained(
-        model_path, config=config, revision="main", use_auth_token=None
+        model_path, config=config, revision="main", use_auth_token=None,
+        ignore_mismatched_sizes=True
     )
     # for name, param in model.named_parameters():
     #     print(f"{name}: {param.size()}")
@@ -99,7 +115,7 @@ class RefineModel(torch.nn.Module):
         return outputs
 
 
-def export_onnx(model_dir, save_path, seq_len=256, batch_size=16):
+def export_onnx(model_dir, save_path, seq_len, batch_size):
     # build tokenizer
     tokenizer = build_tokenizer(tokenizer_name=model_dir)
 
@@ -111,13 +127,19 @@ def export_onnx(model_dir, save_path, seq_len=256, batch_size=16):
 
     # Generate dummy inputs to the model. Adjust if necessary.
     inputs = {
-        "input_ids": torch.randint(max_seq_length, [batch_size, max_seq_length], dtype=torch.int64).to(
+        "input_ids": torch.randint(
+            max_seq_length, [batch_size, max_seq_length], dtype=torch.int64
+        ).to(
             device
         ),  # list of numerical ids for the tokenised text
-        "attention_mask": torch.ones([batch_size, max_seq_length], dtype=torch.int64).to(
+        "attention_mask": torch.ones(
+            [batch_size, max_seq_length], dtype=torch.int64
+        ).to(
             device
         ),  # dummy list of ones
-        "token_type_ids": torch.ones([batch_size, max_seq_length], dtype=torch.int64).to(
+        "token_type_ids": torch.ones(
+            [batch_size, max_seq_length], dtype=torch.int64
+        ).to(
             device
         ),  # dummy list of ones
     }
@@ -144,16 +166,14 @@ def export_onnx(model_dir, save_path, seq_len=256, batch_size=16):
             "input_ids": symbolic_names,
             "attention_mask": symbolic_names,
             "token_type_ids": symbolic_names,
-            "logits": {0: "batch_size"}
+            "logits": {0: "batch_size"},
         },
     )  # variable length axes
 
+
 if __name__ == "__main__":
-    model_dir = sys.argv[1]
-    save_path = sys.argv[2]
-    seq_len = int(sys.argv[3])
-    batch_size = int(sys.argv[4])
-    export_onnx(model_dir, save_path, seq_len, batch_size)
+    export_onnx(model_dir, save_path, max_seq_length, batch_size)
 
     onnx_model = onnx.load(save_path)
     onnx.checker.check_model(onnx_model)
+    print("Done. check ok")

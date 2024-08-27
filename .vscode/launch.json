@@ -27,21 +27,6 @@
             "justMyCode": false
         },
         {
-            "name": "Py: hf-glue2",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "onnx-model/google-bert-chinese/hfoptimum-glue-2.py",
-            "console": "integratedTerminal",
-            "env": {"PYTHONPATH": "${workspaceFolder}"},
-            "args": ["--model_name_or_path", "distilbert-base-uncased-finetuned-sst-2-english",
-                "--task_name", "sst2",
-                "--do_eval",
-                "--output_dir", "/tmp/optimized_distilbert_sst2",
-                "--overwrite_output_dir"
-            ],
-            "justMyCode": false
-        },
-        {
             "name": "Py: hf-training",
             "type": "debugpy",
             "request": "launch",
@@ -78,6 +63,40 @@
                 "--overwrite_output_dir",
                 "--output_dir", "onnx-model/google-bert-chinese/hfoptimum-trained",
                 "--optim", "adamw_torch",
+            ],
+            "justMyCode": false
+        },
+        {
+            "name": "Py: onnx-bert_zh",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "onnx-model/google-bert-chinese/model.onnx-export.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "MODEL_NAME_OR_PATH": "onnx-model/google-bert-chinese/hfoptimum-trained",
+                "ONNX_OUTPUT": "onnx-model/google-bert-chinese/hfoptimum-trained/model.onnx",
+                "ONNX_OPSET": "16",
+                
+            },
+            "justMyCode": false
+        },
+        {
+            "name": "Py: hf-glue-bert_zh",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "onnx-model/google-bert-chinese/hfoptimum-training/glue.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "CONFIG_NAME": "adapter_config.json",
+            },
+            "args": [
+                "--model_name_or_path", "onnx-model/google-bert-chinese/hfoptimum-trained",
+                "--task_name", "sst2",
+                "--optimization_level", "1",
+                "--output_dir", "onnx-model/google-bert-chinese/hfoptimum-trained",
+                "--overwrite_output_dir"
             ],
             "justMyCode": false
         },
