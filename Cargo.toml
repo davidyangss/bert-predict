@@ -62,7 +62,7 @@ onnx_bert_chinese_ort_train_dataset = { path = "onnx_bert_chinese_ort_train_data
 
 
 [patch.crates-io]
-ort = { path = '/home/yangss/workspace/rust/ort.git' }
+ort = { git = "https://github.com/davidyangss/ort.git", branch = "2.0.0-rc.5" }
 
 
 [package]
