@@ -10,6 +10,11 @@ The purpose of this project is to explore the application of Rust in NLP. On one
         MODEL_FILE=model.onnx \
         AUTO_TOKENIZER_MODEL_NAME_OR_PATH=onnx-model/google-bert-chinese/base_model \
         python onnx-model/google-bert-chinese/hfoptimum-check.py
+
+    MODEL_PATH=onnx-model/google-bert-chinese/onnx-artifacts \
+        MODEL_FILE=training_model.onnx \
+        AUTO_TOKENIZER_MODEL_NAME_OR_PATH=onnx-model/google-bert-chinese/base_model \
+        python onnx-model/google-bert-chinese/hfoptimum-check.py
     ```
 1. hfoptimum-glue.py: a example, from `git@github.com:huggingface/optimum.git` path = `examples/onnxruntime/optimization/text-classification/run_glue.py`
     ``` bash
@@ -35,11 +40,11 @@ The purpose of this project is to explore the application of Rust in NLP. On one
     ```bash
     ./onnx-model/google-bert-chinese/make.sh
     ```
-## ~~Rust, using ort.~~
+## Rust, using ort.
 **Give up because the call failed and the example failed to run. Try [burn](https://github.com/tracel-ai/burn) instead of ort**
 ### Depends on [ort=2.0.0-rc.4](https://crates.io/crates/ort/2.0.0-rc.4), [Guide](https://ort.pyke.io/)
 1. Runtime depends on linux. I use OrbStack at macOS.
-1. The path to the binary can be controlled with the environment variable `ORT_DYLIB_PATH=<project_path>/onnxruntime-libs/libonnxruntime.so.1.18.0`, [Source](https://github.com/microsoft/onnxruntime/releases/download/v1.18.0/onnxruntime-linux-x64-1.18.0.tgz) [Releases](https://github.com/microsoft/onnxruntime/releases/tag/v1.18.0)
+1. The path to the binary can be controlled with the environment variable `ORT_DYLIB_PATH=<project_path>/onnxruntime-libs/libonnxruntime.so.1.18.0`, [Source](https://github.com/microsoft/onnxruntime/releases/download/v1.18.0/onnxruntime-training-linux-x64-1.18.0.tgz) [Releases](https://github.com/microsoft/onnxruntime/releases/tag/v1.18.0)
 1. Runtime, LD_LIBRARY_PATH=<project_path>/onnxruntime-libs/
 ### onnx_bert_chinese_ort_train_dataset, from csv files to datasets
 1. From `git@github.com:pykeio/ort.git, branch = 2.0.0-rc.4, file = examples/training/examples/pretokenize.rs`
@@ -50,7 +55,7 @@ The purpose of this project is to explore the application of Rust in NLP. On one
         --files-chunks=1 \
         --out-dataset-bin="./target/dataset.bin" \
         --csv-delimiter="	" \
-        --csvs="data/train.tsv"
+        --csvs="data/train.csv"
     ```
 ### onnx_bert_chinese_ort_train, using datasets for train
 1. From `From git@github.com:pykeio/ort.git, branch = 2.0.0-rc.4, file = examples/training/examples/train-clm.rs`
@@ -72,13 +77,50 @@ The purpose of this project is to explore the application of Rust in NLP. On one
         --dataset-bin="./target/dataset.bin/dataset-0-9600-1960.bin"
     ```
 
-## The issue I am currently facing
+### The issue I am currently facing
+1. ```
+    Error: trainer.step(inputs, labels), error: Failed to run inference on model: /onnxruntime_src/orttraining/orttraining/training_api/module.cc:632 onnxruntime::common::Status onnxruntime::training::api::Module::TrainStep(const std::vector<OrtValue>&, std::vector<OrtValue>&) [ONNXRuntimeError] : 2 : INVALID_ARGUMENT : feed names has 407 elements, but feed has 405 elements.
+    netron 分析 onnx-model/google-bert-chinese/onnx-artifacts/training_model.onnx，
+        inputs
+            1. input_ids
+                name: input_ids
+                tensor: int64[batch_size,sequence_length]
+            2. attention_mask
+                name: attention_mask
+                tensor: int64[batch_size,sequence_length]
+            3. token_type_ids
+                name: token_type_ids
+                tensor: int64[batch_size,sequence_length]
+            4. labels
+                name: labels
+                tensor: int64[batch_size]
+    而调用trainer.step(inputs, labels)中inputs个数不对
+   ```
+
 1. ```
     # Run:
-    cargo run -p onnx_bert_chinese_ort_train --example train
+    cargo run -p onnx_bert_chinese_ort_train --example training
 
     Error: trainer.step(inputs, labels), error: Failed to run inference on model: /onnxruntime_src/orttraining/orttraining/training_api/module.cc:632 onnxruntime::common::Status onnxruntime::training::api::Module::TrainStep(const std::vector<OrtValue>&, std::vector<OrtValue>&) [ONNXRuntimeError] : 2 : INVALID_ARGUMENT : Unexpected input data type. Actual: (tensor(int64)) , expected: (tensor(float))
+
+    artifacts.generate_artifacts(.., BCEWithLogitsLoss, ..)
+    netron 分析 onnx-model/google-bert-chinese/onnx-artifacts/training_model.onnx，inputs target 是 tensor(float)。
+    改为 artifacts.generate_artifacts(.., CrossEntropyLoss, ..) 重新生成 inputs labels 是 tensor(int64)。
     ```
+
+## Python, huggingface-optimum, training OK
+1. 版本兼容问题导致了很多问题，最终确定了版本 onnx-model/google-bert-chinese/hfoptimum-requirements.txt
+1. [onnx-model/google-bert-chinese/hfoptimum-training/run_classification.py](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/text-classification/run_classification.py)
+1. ```
+    # git clone 
+    ./onnx-model/google-bert-chinese/make.sh git_model-bert-base-chinese
+    # training ~~ .vscode/launch.json#Python: hfoptimum-training
+    ./onnx-model/google-bert-chinese/make.sh hfoptimum-training
+   ```
+1. ```
+    # 导出 onnx model
+    ./onnx-model/google-bert-chinese/make.sh hfoptimum-trained-to-model_onnx
+   ```
 
 # References
 1. [onnxruntime](https://github.com/microsoft/onnxruntime)

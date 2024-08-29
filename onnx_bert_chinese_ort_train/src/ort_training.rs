@@ -11,10 +11,12 @@ pub struct OrtTraining {
     out_trained_onnx: PathBuf,
 
     _training_steps: usize,
-    _training_batch_size: usize,
+    training_batch_size: usize,
     training_sequence_length: usize,
 
     _ids_max_len: usize,
+    attention_mask_ndarray: ndarray::Array2<IdsType>,
+    token_type_ids_ndarray: ndarray::Array2<IdsType>,
 }
 
 type IdsType = i64;
@@ -22,9 +24,13 @@ type LablesType = i64;
 type LossType = f32;
 
 impl OrtTraining {
+    pub fn get_trainer(&self) -> &Trainer {
+        &self.trainer
+    }
     pub fn step(&self, batch: &[TextLabel]) -> anyhow::Result<LossType> {
-        let mut inputs = vec![0 as IdsType; batch.len() * self.training_sequence_length];
-        let mut labels = Vec::<IdsType>::with_capacity(batch.len());
+        let mut inputs =
+            vec![0 as IdsType; self.training_batch_size * self.training_sequence_length];
+        let mut labels = vec![0 as LablesType; self.training_batch_size];
         trace!(
             "step batch: shape: [{}, {}], labels = {}",
             batch.len(),
@@ -42,7 +48,7 @@ impl OrtTraining {
             if label.len() != 1 {
                 return Err(anyhow::anyhow!("label.len() != 1, label bytes error"));
             }
-            labels.extend(label);
+            labels[i .. i+1].clone_from_slice(&label);
         }
 
         // trace!(
@@ -57,30 +63,42 @@ impl OrtTraining {
         trace!("step inputs: {}, step labels: {:?}", inputs.len(), labels);
 
         let trainer = &self.trainer;
-        let inputs = ndarray::Array2::<IdsType>::from_shape_vec(
-            [batch.len(), self.training_sequence_length],
-            inputs,
-        )
-        .map_err(|e| anyhow::anyhow!("Array2::<i64>::from_shape_vec(inputs), error: {e}"))?;
-        let labels = ndarray::Array1::<LablesType>::from_shape_vec([labels.len()], labels)
-            .map_err(|e| anyhow::anyhow!("Array1::<i64>::from_shape_vec(labels), error: {e}"))?;
+
+        let inputs: ndarray::ArrayBase<ndarray::OwnedRepr<i64>, ndarray::Dim<[usize; 2]>> =
+            ndarray::Array2::<IdsType>::from_shape_vec(
+                [self.training_batch_size, self.training_sequence_length],
+                inputs,
+            )
+            .map_err(|e| {
+                anyhow::anyhow!("Array2::<IdsType>::from_shape_vec(inputs), error: {e}")
+            })?;
+
+        let labels = ndarray::Array1::<LablesType>::from_vec(labels);
 
         trace!("step ndarray inputs: {:?}", inputs);
         trace!("step ndarray labels: {:?}", labels);
 
-        let inputs = ort::inputs![inputs.view(),inputs.view(),inputs.view()]
-            .map_err(|e| anyhow::anyhow!("ort::inputs![inputs.view()], error: {e}"))?;
+        let inputs = ort::inputs![
+            inputs.view(),
+            self.attention_mask_ndarray.view(),
+            self.token_type_ids_ndarray.view()
+        ]
+        .map_err(|e| anyhow::anyhow!("ort::inputs![inputs.view()], error: {e}"))?;
         let labels = ort::inputs![labels.view()]
             .map_err(|e| anyhow::anyhow!("ort::inputs![labels.view()], error: {e}"))?;
+
         let outputs = trainer
             .step(inputs, labels)
             .map_err(|e| anyhow::anyhow!("trainer.step(inputs, labels), error: {e}"))?;
-        let loss = outputs[0]
-            .try_extract_scalar::<LossType>()
-            .map_err(|e| anyhow::anyhow!("outputs[0].try_extract_scalar::<LossType>(), error: {e}"))?;
+
+        let loss = outputs[0].try_extract_scalar::<LossType>().map_err(|e| {
+            anyhow::anyhow!("outputs[0].try_extract_scalar::<LossType>(), error: {e}")
+        })?;
+
         if loss.is_nan() {
             return Ok(loss);
         }
+
         trainer
             .optimizer()
             .step()
@@ -217,14 +235,36 @@ impl OrtTrainingBuilder {
 
         info!("Ort traning model is ready.");
 
+        let token_type_ids =
+            vec![0 as IdsType; self.training_batch_size * self.training_sequence_length];
+        let token_type_ids_ndarray = ndarray::Array2::<IdsType>::from_shape_vec(
+            [self.training_batch_size, self.training_sequence_length],
+            token_type_ids,
+        )
+        .map_err(|e| {
+            anyhow::anyhow!("Array2::<IdsType>::from_shape_vec(token_type_ids), error: {e}")
+        })?;
+
+        let attention_mask =
+            vec![1 as IdsType; self.training_batch_size * self.training_sequence_length];
+        let attention_mask_ndarray = ndarray::Array2::<IdsType>::from_shape_vec(
+            [self.training_batch_size, self.training_sequence_length],
+            attention_mask,
+        )
+        .map_err(|e| {
+            anyhow::anyhow!("Array2::<IdsType>::from_shape_vec(attention_mask), error: {e}")
+        })?;
+
         Ok(OrtTraining {
             trainer,
             _tokenizer: tokenizer,
             out_trained_onnx: self.out_trained_onnx,
             _training_steps: self.training_steps,
-            _training_batch_size: self.training_batch_size,
+            training_batch_size: self.training_batch_size,
             training_sequence_length: self.training_sequence_length,
             _ids_max_len: self.idxs_max_len,
+            token_type_ids_ndarray: token_type_ids_ndarray,
+            attention_mask_ndarray: attention_mask_ndarray,
         })
     }
 }

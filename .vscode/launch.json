@@ -11,7 +11,7 @@
             "justMyCode": false
         },
         {
-            "name": "Python: hfoptimum-glue.py",
+            "name": "Py: hf-glue",
             "type": "debugpy",
             "request": "launch",
             "program": "onnx-model/google-bert-chinese/hfoptimum-glue.py",
@@ -25,7 +25,95 @@
                 "--overwrite_output_dir"
             ],
             "justMyCode": false
-        }
-
+        },
+        {
+            "name": "Py: hf-training",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "onnx-model/google-bert-chinese/hfoptimum-training/run_classification.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "ORTMODULE_MEMORY_OPT_LEVEL": "2",
+            },
+            "args": [
+                "--model_name_or_path", "onnx-model/google-bert-chinese/base_model.git",
+                "--tokenizer_name", "onnx-model/google-bert-chinese/base_model.git",
+                "--max_eval_samples", "10",
+                "--max_train_samples", "50",
+                "--metric_name", "accuracy",
+                "--text_column_name", "text",
+                "--label_column_name", "label",
+                "--csv_column_delimiter", "\\t",
+                "--train_file", "data/train.csv",
+                "--validation_file", "data/eval.csv",
+                "--onnx_log_level", "INFO",
+                "--save_onnx", "True",
+                "--onnx_prefix", "bert-zh",
+                "--do_train",
+                "--do_eval",
+                "--pad_to_max_length", "True",
+                "--max_seq_length", "256",
+                "--per_device_train_batch_size", "4",
+                "--learning_rate", "2e-5",
+                "--num_train_epochs", "1",
+                "--evaluation_strategy", "epoch",
+                "--deepspeed", "onnx-model/google-bert-chinese/hfoptimum-training/zero_stage_2.json",
+                "--use_peft",
+                "--overwrite_output_dir",
+                "--output_dir", "onnx-model/google-bert-chinese/hfoptimum-trained",
+                "--optim", "adamw_torch",
+            ],
+            "justMyCode": false
+        },
+        {
+            "name": "Py: onnx-bert_zh",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "onnx-model/google-bert-chinese/model.onnx-export.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "MODEL_NAME_OR_PATH": "onnx-model/google-bert-chinese/hfoptimum-trained",
+                "ONNX_OUTPUT": "onnx-model/google-bert-chinese/hfoptimum-trained/model.onnx",
+                "ONNX_OPSET": "16",
+                
+            },
+            "justMyCode": false
+        },
+        {
+            "name": "Py: hf-glue-bert_zh",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "onnx-model/google-bert-chinese/hfoptimum-training/glue.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "CONFIG_NAME": "adapter_config.json",
+            },
+            "args": [
+                "--model_name_or_path", "onnx-model/google-bert-chinese/hfoptimum-trained",
+                "--task_name", "sst2",
+                "--optimization_level", "1",
+                "--output_dir", "onnx-model/google-bert-chinese/hfoptimum-trained",
+                "--overwrite_output_dir"
+            ],
+            "justMyCode": false
+        },
+        {
+            "name": "Py: artifacts",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "onnx-model/google-bert-chinese/onnx-artifacts.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "ONNX_MODEL": "${workspaceFolder}/onnx-model/google-bert-chinese/base_model/model.onnx",
+                "ONNX_OUTPUT": "${workspaceFolder}/onnx-model/google-bert-chinese/onnx-artifacts"
+            },
+            "args": [
+            ],
+            "justMyCode": false
+        },
     ]
 }

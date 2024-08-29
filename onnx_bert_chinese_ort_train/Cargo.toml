@@ -9,7 +9,7 @@ cuda = ["ort/cuda"]
 
 [dependencies]
 async-stream = { version = "0.3.5", optional = true }
-futures-async-stream = { version = "0.2", optional = true }
+#futures-async-stream = { version = "0.2", optional = true }
 
 ort.workspace = true
 ndarray.workspace = true
@@ -46,8 +46,8 @@ simd-json = "0.13"
 
 
 [[bin]]
-name = "train"
-path = "src/train.rs"
+name = "training"
+path = "src/training.rs"
 
 [lib]
 path = "src/lib.rs"

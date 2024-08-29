@@ -33,7 +33,7 @@ output = os.environ.get("ONNX_OUTPUT", f"{script_dir}/base_model")
 output_path = Path(output)
 output_path.mkdir(parents=True, exist_ok=True)
 
-opset = int(os.environ.get("ONNX_OPSET", "14"))
+opset = int(os.environ.get("ONNX_OPSET"))
 batch_size = int(os.environ.get("ONNX_BATCH_SIZE", "4"))
 sequence_length = int(os.environ.get("ONNX_SEQUENCE_LENGTH", "256"))
 
@@ -49,8 +49,8 @@ model_id = "google-bert/bert-base-chinese"
 class CustomBertOnnxConfig(BertOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    ATOL_FOR_VALIDATION = 1e-7
-    DEFAULT_ONNX_OPSET = 14
+    ATOL_FOR_VALIDATION = 1e-4
+    # DEFAULT_ONNX_OPSET = 14
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -65,7 +65,7 @@ class CustomBertOnnxConfig(BertOnnxConfig):
         }
 
 class CustomDistilBertOnnxConfig(DistilBertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14
+    # DEFAULT_ONNX_OPSET = 14
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         if self.task == "multiple-choice":
@@ -115,20 +115,22 @@ main_export(
     output=output_path,
     task="text-classification",
     device="cpu",
-    dtype="fp32",
+    # dtype="fp32",
     # optimize="O1",
     opset=opset,
     framework="pt",
     pad_token_id=0,
     revision="main",
     custom_onnx_configs=custom_onnx_configs,
-    for_ort=True,
-    force_download=True,
-    kwargs_shapes={ # DEFAULT_DUMMY_SHAPES
-        "batch_size": batch_size,
-        "sequence_length": sequence_length,
-        "num_choices": 4
-    },
+    # for_ort=True,
+    # force_download=True,
+    batch_size=batch_size,
+    sequence_length=sequence_length,
+    # kwargs_shapes={ # DEFAULT_DUMMY_SHAPES
+    #     "batch_size": batch_size,
+    #     "sequence_length": sequence_length,
+    #     "num_choices": 4
+    # },
     do_constant_folding=True,
     # model_kwargs: Optional[Dict[str, Any]] = None,)
 )

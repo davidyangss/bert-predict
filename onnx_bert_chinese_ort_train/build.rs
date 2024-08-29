@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const ONNXRUNTIME_VERSION: &str = "1.18.0";
+const ONNXRUNTIME_VERSION: &str = "1.19.0";
 const ORT_ENV_ORT_DYLIB_PATH: &str = "ORT_DYLIB_PATH";
 
 fn select_onnxruntime_lib() -> PathBuf {

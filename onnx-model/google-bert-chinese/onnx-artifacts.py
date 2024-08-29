@@ -32,16 +32,27 @@ for domain in onnx_model.opset_import:
 		break
         
 requires_grad = [param.name for param in onnx_model.graph.initializer]
+# print(f"requires_grad 00 = {requires_grad} \n")
+# requires_grad = [name for name, param in onnx_model.named_parameters() if param.requires_grad]
+# print(f"requires_grad 11 = {requires_grad} \n")
+# frozen_params = [name for name, param in onnx_model.named_parameters() if not param.requires_grad]
+# print(frozen_params)
+# print(f"frozen_params 22 = {frozen_params} \n")
+
+frozen_params = []
 
 artifacts.generate_artifacts(
 	onnx_model,
 	requires_grad=requires_grad,
-	frozen_params=[],
-	loss=artifacts.LossType.BCEWithLogitsLoss,
+	frozen_params=frozen_params,
+	loss=artifacts.LossType.CrossEntropyLoss,
 	optimizer=artifacts.OptimType.AdamW,
     ort_format=True,
-    # additional_output_names=["logits"],
+    additional_output_names=["logits"],
+	nominal_checkpoint=True,
 	artifact_directory=output
 )
+
+print("Done. generate artifacts")
 
 
