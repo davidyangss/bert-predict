@@ -67,6 +67,34 @@
             "justMyCode": false
         },
         {
+            "name": "Py: onnx-eval",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "onnx-model/google-bert-chinese/run_eval.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "ORTMODULE_MEMORY_OPT_LEVEL": "2",
+            },
+            "args": [
+                "--tokenizer_json_path", "onnx-model/google-bert-chinese/base_model",
+                "--optimized_model_path", "onnx-model/google-bert-chinese/onnx-artifacts/trained_model.onnx",
+                "--output_dir", "onnx-model/google-bert-chinese/onnx-artifacts",
+                "--validation_file", "data/eval.csv",
+                "--test_file", "data/test.csv",
+                "--max_eval_samples", "10",
+                "--metric_name", "accuracy",
+                "--text_column_name", "text",
+                "--label_column_name", "label",
+                "--csv_column_delimiter", "\\t",
+                "--onnx_log_level", "INFO",
+                "--do_eval",
+                "--do_predict",
+                "--pad_to_max_length", "True"
+            ],
+            "justMyCode": false
+        },
+        {
             "name": "Py: onnx-bert_zh",
             "type": "debugpy",
             "request": "launch",

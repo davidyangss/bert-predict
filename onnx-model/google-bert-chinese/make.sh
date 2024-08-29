@@ -311,6 +311,46 @@ function onnx-artifacts {
     info "Done($?). onnx-artifacts ok. $GOOGLE_BERT_MODEL_DIR/model.onnx ==> $GOOGLE_BERT_ONNX_DIR"
 }
 
+
+function eval_trained-onnx {
+    venv_hfoptimum
+
+    # --optim=adamw_ort_fused,
+    cmd=$(cat <<EOF
+        python $GOOGLE_BERT_CHINESE_DIR/run_eval.py \
+            --tokenizer_json_path=$GOOGLE_BERT_MODEL_DIR \
+            --optimized_model_path=$GOOGLE_BERT_ONNX_DIR/trained_model.onnx \
+            --output_dir=$GOOGLE_BERT_ONNX_DIR \
+            --validation_file=$GOOGLE_BERT_TRAINING_DATA/eval.csv \
+            --test_file=$GOOGLE_BERT_TRAINING_DATA/test.csv \
+            --max_eval_samples=10 \
+            --metric_name=accuracy \
+            --text_column_name=text \
+            --label_column_name=label \
+            --csv_column_delimiter=\\t \
+            --onnx_log_level=INFO \
+            --do_eval \
+            --do_predict \
+            --pad_to_max_length=True
+EOF
+)
+    # info "$cmd"
+    (
+        export OMP_NUM_THREADS=1
+        export MAX_JOBS=4
+
+        set -x
+        $cmd
+    )
+
+    local status=$?
+    if [ $status -ne 0 ]; then
+        die "Failed($status): $cmd"
+    else
+        info "Done. eval ok."
+    fi
+}
+
 # if [ $# -lt 1 ]; then
 #     model-export
 #     onnx-training
