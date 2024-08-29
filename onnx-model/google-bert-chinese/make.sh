@@ -16,8 +16,8 @@ GOOGLE_BERT_TRAINING_DATA=$GOOGLE_BERT_CHINESE_DIR/../../data
 GOOGLE_BERT_EXPORT_PYVENV_NAME=hfoptimum
 GOOGLE_BERT_PYVENV_NAME=google-bert-chinese-onnx
 
-export SHAPE_BATCH_SIZE=4
-export SHAPE_SEQ_LEN=256
+export SHAPE_BATCH_SIZE=8
+export SHAPE_SEQ_LEN=512
 export OPSET_VERSION=16
 
 function workon_pyenv_or_create {

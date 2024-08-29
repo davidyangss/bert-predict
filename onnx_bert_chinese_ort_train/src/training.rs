@@ -164,7 +164,7 @@ async fn training_do(
     tokio::spawn(next_training.next_training());
 
     eprintln!();
-    let count = 0_usize;
+    let mut count = 0_usize;
     while let Some(v) = rx.recv().await {
         let loss = ort_training
             .step(v.as_slice())
@@ -172,7 +172,8 @@ async fn training_do(
                 debug!("Step({count}) ort training step error, the record = {v:?}, error = {e}")
             })
             .inspect(|_| trace!("Step({count}) ort training step ok, the record = {v:?}"))?;
-        pb.set_postfix(format!("Step({count})-loss={loss:.3}"));
+        count += 1;
+        pb.set_postfix(format!("Loss={loss:.3}"));
         pb.update(1).unwrap();
     }
     eprintln!();
