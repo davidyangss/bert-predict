@@ -42,12 +42,16 @@ The purpose of this project is to explore the application of Rust in NLP. On one
     ```
 ## Rust, using ort.
 **Give up because the call failed and the example failed to run. Try [burn](https://github.com/tracel-ai/burn) instead of ort**
-### Depends on [ort=2.0.0-rc.4](https://crates.io/crates/ort/2.0.0-rc.4), [Guide](https://ort.pyke.io/)
+### Depends on [ort=2.0.0-rc.5](https://crates.io/crates/ort/2.0.0-rc.5), [Guide](https://ort.pyke.io/)
 1. Runtime depends on linux. I use OrbStack at macOS.
 1. The path to the binary can be controlled with the environment variable `ORT_DYLIB_PATH=<project_path>/onnxruntime-libs/libonnxruntime.so.1.18.0`, [Source](https://github.com/microsoft/onnxruntime/releases/download/v1.18.0/onnxruntime-training-linux-x64-1.18.0.tgz) [Releases](https://github.com/microsoft/onnxruntime/releases/tag/v1.18.0)
 1. Runtime, LD_LIBRARY_PATH=<project_path>/onnxruntime-libs/
+### Make model.onnx
+```bash
+./onnx-model/google-bert-chinese/make.sh
+```
 ### onnx_bert_chinese_ort_train_dataset, from csv files to datasets
-1. From `git@github.com:pykeio/ort.git, branch = 2.0.0-rc.4, file = examples/training/examples/pretokenize.rs`
+1. From `git@github.com:pykeio/ort.git, branch = 2.0.0-rc.5, file = examples/training/examples/pretokenize.rs`
 1. Run 
     ```
     cargo run -r -p onnx_bert_chinese_ort_train_dataset -- \
@@ -58,15 +62,16 @@ The purpose of this project is to explore the application of Rust in NLP. On one
         --csvs="data/train.csv"
     ```
 ### onnx_bert_chinese_ort_train, using datasets for train
-1. From `From git@github.com:pykeio/ort.git, branch = 2.0.0-rc.4, file = examples/training/examples/train-clm.rs`
+1. From `From git@github.com:pykeio/ort.git, branch = 2.0.0-rc.5, file = examples/training/examples/train-clm.rs`
 1. Run
     ```
+    # 运行成功，生成./onnx-model/google-bert-chinese/onnx-artifacts/trained_model.onnx
     export RUST_LOG=train=trace,onnx_bert_chinese_ort_train=trace
     cargo run -p onnx_bert_chinese_ort_train -- \
         --bin-file-chunk-size=1 \
         --channel-buf-size=3 \
-        --training-batch-size=4 \
-        --training-sequence-length=256 \
+        --training-batch-size=8 \
+        --training-sequence-length=512 \
         --optimizer-lr=7e-5 \
         --tokenizer-json="./onnx-model/google-bert-chinese/base_model/tokenizer.json" \
         --checkpoint-file="./onnx-model/google-bert-chinese/onnx-artifacts/checkpoint" \
@@ -74,8 +79,15 @@ The purpose of this project is to explore the application of Rust in NLP. On one
         --eval-model-file="./onnx-model/google-bert-chinese/onnx-artifacts/eval_model.onnx" \
         --optimizer-model-file="./onnx-model/google-bert-chinese/onnx-artifacts/optimizer_model.onnx" \
         --out-trained-onnx="./onnx-model/google-bert-chinese/onnx-artifacts/trained_model.onnx" \
-        --dataset-bin="./target/dataset.bin/dataset-0-9600-1960.bin"
+        --dataset-bin="./target/dataset.bin/dataset-0-1200-900.bin"
     ```
+### eval
+```bash
+# eval_result.json = onnx-model/google-bert-chinese/onnx-artifacts/eval_results.json
+# prediction.txt = onnx-model/google-bert-chinese/onnx-artifacts/prediction.txt
+# 很遗憾准确率只有0.4
+./onnx-model/google-bert-chinese/make.sh eval_trained-onnx
+```
 
 ### The issue I am currently facing
 1. ```

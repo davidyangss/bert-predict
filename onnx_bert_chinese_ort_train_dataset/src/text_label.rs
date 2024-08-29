@@ -303,7 +303,7 @@ impl TextLabel {
                 .enumerate()
                 .for_each(move |(i, t)| {
                     if i >= targets.len() {
-                        trace!("When bytes into encoding ids, targets too short, drop some data");
+                        trace!("When bytes into encoding ids, targets too short, drop some data[{i}..]");
                         return;
                     }
                     targets[i] = t;

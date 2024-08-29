@@ -228,7 +228,7 @@ impl OrtTrainingBuilder {
             self.eval_model,
             self.optimizer_model,
         )?;
-        trainer.optimizer().set_lr(7e-5)?;
+        trainer.optimizer().set_lr(self.optimizer_lr)?;
 
         let tokenizer = Tokenizer::from_file(self.tokenizer_json)
             .map_err(|_| anyhow::anyhow!("create tokenizer fail"))?;
