@@ -20,7 +20,7 @@ export SHAPE_BATCH_SIZE=8
 export SHAPE_SEQ_LEN=512
 export OPSET_VERSION=16
 
-function workon_pyenv_or_create {
+function workon_or_create_by_pyenv {
     pyenv_name=$1
     if [ "$VIRTUAL_ENV_PROMPT" = "$pyenv_name" ]; then
         info "OK. workon $pyenv_name."
@@ -41,26 +41,59 @@ function workon_pyenv_or_create {
     workon $pyenv_name
 }
 
+function virtual-env {
+    [ -z "$VIRTUAL_ENV" ] && echo "$(conda info --base)/envs/$1" || echo "$VIRTUAL_ENV"
+}
+
+function is_conda {
+    [ ! -z "$CONDA_DEFAULT_ENV" ]
+}
+
+function workon {
+    conda activate $1
+}
+
+function mkvirtualenv {
+    conda create -n $1 python=3.10.9
+}
+
+function workon_or_create {
+    v_name=$1
+    if [ "$CONDA_DEFAULT_ENV" = "$v_name" ]; then
+        info "OK. workon $v_name."
+        return
+        
+    fi
+    if workon $v_name > /dev/null; then
+        info "OK. workon $v_name."
+        return
+    fi
+
+    mkvirtualenv $v_name || die "mkvirtualenv $v_name failed."
+    info "OK. created env $v_name."
+
+    workon $v_name
+}
+
 # function venv_hfoptimum {
-#     workon_pyenv_or_create $GOOGLE_BERT_EXPORT_PYVENV_NAME
+#     workon_or_create $GOOGLE_BERT_EXPORT_PYVENV_NAME
 #     pip install optimum[exporters] accelerate
 #     python -m pip install optimum
 #     pip install --upgrade --upgrade-strategy eager optimum[onnxruntime]
 # }
 
 function venv_hfoptimum {
-    workon_pyenv_or_create $GOOGLE_BERT_EXPORT_PYVENV_NAME
+    workon_or_create $GOOGLE_BERT_EXPORT_PYVENV_NAME
 
     requirements_txt=$GOOGLE_BERT_CHINESE_DIR/hfoptimum-requirements.txt
 
-    md5_venv=$(cat ${VIRTUAL_ENV}/requirements.txt.md5 || echo "")
+    md5_venv=$(cat $(virtual-env $GOOGLE_BERT_EXPORT_PYVENV_NAME)/requirements.txt.md5 || echo "")
     md5_req=$(md5sum $requirements_txt|awk '{print $1}')
     if [[ "x$md5_venv" == "x$md5_req"  ]]; then
         return
     fi
 
-    pip install --require-virtualenv \
-        -r $requirements_txt
+    pip install $(is_conda || echo "--require-virtualenv") -r $requirements_txt
 
     # ImportError: cannot import name 'PropagateCastOpsStrategy' from 'onnxruntime.capi._pybind_state'
     pip install \
@@ -69,7 +102,7 @@ function venv_hfoptimum {
     python -m torch_ort.configure
 
     info "OK. installed requirements.txt for $GOOGLE_BERT_EXPORT_PYVENV_NAME."
-    echo $md5_req > ${VIRTUAL_ENV}/requirements.txt.md5
+    echo $md5_req > $(virtual-env $GOOGLE_BERT_EXPORT_PYVENV_NAME)/requirements.txt.md5
 }
 
 function official-model-export {
@@ -107,26 +140,26 @@ function venv_onnx {
     venv_hfoptimum
 }
 function venv_onnx-2 {
-    workon_pyenv_or_create $GOOGLE_BERT_PYVENV_NAME
+    workon_or_create $GOOGLE_BERT_PYVENV_NAME
 
     requirements_txt=$GOOGLE_BERT_CHINESE_DIR/onnx-requirements.txt
 
-    md5_venv=$(cat ${VIRTUAL_ENV}/requirements.txt.md5 || echo "")
+    md5_venv=$(cat $(virtual-env $GOOGLE_BERT_PYVENV_NAME)/requirements.txt.md5 || echo "")
     md5_req=$(md5sum $requirements_txt|awk '{print $1}')
     if [[ "x$md5_venv" == "x$md5_req"  ]]; then
         return
     fi
 
-    pip install --require-virtualenv -r $requirements_txt \
+    pip install $(is_conda || echo "--require-virtualenv") -r $requirements_txt \
         --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/ORT/pypi/simple/
     info "OK. installed requirements.txt for $GOOGLE_BERT_PYVENV_NAME."
-    # echo $md5_req > ${VIRTUAL_ENV}/requirements.txt.md5
+    # echo $md5_req > $(virtual-env $GOOGLE_BERT_PYVENV_NAME)/requirements.txt.md5
 
     # MAGIC_ONNX=GOOGLE_BERT_MODEL_DIR=$GOOGLE_BERT_CHINESE_DIR/MagicONNX
     # git clone https://gitee.com/Ronnie_zheng/MagicONNX.git $MAGIC_ONNX
     # (cd $MAGIC_ONNX && git checkout dev && pip3 install .)
 
-    echo $md5_req > ${VIRTUAL_ENV}/requirements.txt.md5
+    echo $md5_req > $(virtual-env $GOOGLE_BERT_PYVENV_NAME)/requirements.txt.md5
 }
 # 输入参数：${model_dir} ${output_path} ${seq_length} ${batch_size} 
 # python3 pth2onnx.py ./bert-base-chinese ./bert_base_chinese.onnx 384
