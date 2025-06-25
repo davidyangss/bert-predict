@@ -6,12 +6,11 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Once, OnceLock,
     },
-    time::Duration,
 };
 
 use futures::Future;
 
-use tokio::runtime::{HistogramScale, Runtime};
+use tokio::runtime::Runtime;
 
 use tracing::{info, level_filters::LevelFilter, Level};
 use tracing_subscriber::{
@@ -85,12 +84,12 @@ pub fn runtime() -> &'static tokio::runtime::Runtime {
                 let id = ATOMIC_ID.fetch_add(1, Ordering::SeqCst);
                 format!("tokio-{}", id)
             })
-            .disable_lifo_slot()
+            // .disable_lifo_slot()
             .enable_all()
-            .enable_metrics_poll_count_histogram()
-            .metrics_poll_count_histogram_scale(HistogramScale::Log)
-            .metrics_poll_count_histogram_buckets(15)
-            .metrics_poll_count_histogram_resolution(Duration::from_micros(100))
+            // .enable_metrics_poll_count_histogram()
+            // .metrics_poll_count_histogram_scale(HistogramScale::Log)
+            // .metrics_poll_count_histogram_buckets(15)
+            // .metrics_poll_count_histogram_resolution(Duration::from_micros(100))
             .build()
             .unwrap()
     })
